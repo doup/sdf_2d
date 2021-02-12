@@ -7,23 +7,13 @@ use minifb::{Key, Window, WindowOptions};
 const WIDTH: usize = 600;
 const HEIGHT: usize = 600;
 
-fn clamp(value: f32, min: f32, max: f32) -> f32 {
-    if value < min {
-        min
-    } else if value > max {
-        max
-    } else {
-        value
-    }
-}
-
 fn from_u8_rgb(r: u8, g: u8, b: u8) -> u32 {
     let (r, g, b) = (r as u32, g as u32, b as u32);
     ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF)
 }
 
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
-    let t = clamp(t, 0.0, 1.0);
+    let t = t.clamp(0.0, 1.0);
     a * (1.0 - t) + b * t
 }
 
@@ -34,7 +24,7 @@ fn smoothstep(a: f32, b: f32, t: f32) -> f32 {
     if a == b {
         a
     } else {
-        let t = clamp((t - a) / (b - a), 0.0, 1.0);
+        let t = ((t - a) / (b - a)).clamp(0.0, 1.0);
         t * t * (3.0 - 2.0 * t)
     }
 }
@@ -117,7 +107,7 @@ impl SDF for OpSmoothUnion {
         let distance_1 = self.sdf_1.get_distance(point);
         let distance_2 = self.sdf_2.get_distance(point);
 
-        let h = clamp( 0.5 + 0.5 * (distance_2 - distance_1) / self.fuzz, 0.0, 1.0 );
+        let h = (0.5 + 0.5 * (distance_2 - distance_1) / self.fuzz).clamp(0.0, 1.0 );
         return lerp(distance_2, distance_1, h) - self.fuzz * h * (1.0 - h);
     }
 }
