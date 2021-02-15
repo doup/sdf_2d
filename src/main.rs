@@ -30,7 +30,7 @@ fn smoothstep(a: f32, b: f32, t: f32) -> f32 {
 }
 
 trait SDF {
-    fn get_distance(&self, point: Vec2) -> f32;
+    fn get_distance(&self, arena: &Vec<Object>, point: Vec2) -> f32;
 }
 
 #[derive(Debug)]
@@ -68,7 +68,7 @@ impl From<Color> for u32 {
 
 struct Layer {
     color: Color,
-    shape: Object,
+    shape: usize,
 }
 
 struct Object {
@@ -81,7 +81,7 @@ struct Object {
 }
 
 impl SDF for Object {
-    fn get_distance(&self, point: Vec2) -> f32 {
+    fn get_distance(&self, arena: &Vec<Object>, point: Vec2) -> f32 {
         // Translate
         let translate = Vec2::new(self.x as f32, self.y as f32);
         let point = point - translate;
@@ -98,7 +98,7 @@ impl SDF for Object {
         // TODO: Apply distortion
 
         // Get scaled distance
-        self.sdf.get_distance(point / self.scale) * self.scale
+        self.sdf.get_distance(arena, point / self.scale) * self.scale
     }
 }
 
@@ -107,7 +107,7 @@ struct Circle {
 }
 
 impl SDF for Circle {
-    fn get_distance(&self, point: Vec2) -> f32 {
+    fn get_distance(&self, arena: &Vec<Object>, point: Vec2) -> f32 {
         point.length() - self.radius
     }
 }
@@ -117,7 +117,7 @@ struct Square {
 }
 
 impl SDF for Square {
-    fn get_distance(&self, point: Vec2) -> f32 {
+    fn get_distance(&self, arena: &Vec<Object>, point: Vec2) -> f32 {
         let d = point.abs() - self.size;
         let a = Vec2::new(d.x.max(0.0), d.y.max(0.0));
 
@@ -126,15 +126,15 @@ impl SDF for Square {
 }
 
 struct OpSmoothUnion {
-    sdf_1: Box<dyn SDF>,
-    sdf_2: Box<dyn SDF>,
+    sdf_1: usize,
+    sdf_2: usize,
     fuzz: f32,
 }
 
 impl SDF for OpSmoothUnion {
-    fn get_distance(&self, point: Vec2) -> f32 {
-        let distance_1 = self.sdf_1.get_distance(point);
-        let distance_2 = self.sdf_2.get_distance(point);
+    fn get_distance(&self, arena: &Vec<Object>, point: Vec2) -> f32 {
+        let distance_1 = arena[self.sdf_1].get_distance(arena, point);
+        let distance_2 = arena[self.sdf_2].get_distance(arena, point);
 
         let h = (0.5 + 0.5 * (distance_2 - distance_1) / self.fuzz).clamp(0.0, 1.0 );
         return lerp(distance_2, distance_1, h) - self.fuzz * h * (1.0 - h);
@@ -154,37 +154,85 @@ fn main() -> Result<(), Box<dyn Error>> {
     window.limit_update_rate(Some(std::time::Duration::from_micros(16_600)));
 
     let start_time = Instant::now();
+    let mut objects = vec![
+        // 0
+        Object {
+            x: (WIDTH / 2) as f32,
+            y: (HEIGHT / 2) as f32,
+            rotation: 1.0,
+            scale: 1.0,
+            distortion: Vec::new(),
+            sdf: Box::new(OpSmoothUnion {
+                sdf_1: 1,
+                sdf_2: 2,
+                fuzz: 25.0,
+            })
+        },
+        // 1
+        Object {
+            x: 0.0,
+            y: 0.0,
+            rotation: 0.0,
+            scale: 1.0,
+            distortion: Vec::new(),
+            sdf: Box::new(Circle {
+                radius: 50.0,
+            })
+        },
+        // 2
+        Object {
+            x: 0.0,
+            y: 0.0,
+            rotation: 0.0,
+            scale: 1.0,
+            distortion: Vec::new(),
+            sdf: Box::new(Square {
+                size: Vec2::new(100.0, 10.0)
+            })
+        }
+    ];
+
+    let layers = vec![
+        Layer {
+            color: Color(1.0, 0.0, 0.0, 1.0),
+            shape: 0,
+        }
+    ];
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
-        let time = start_time.elapsed().as_millis() as f32 / 1000.0;
-        let circle_sdf = Circle { radius: 50.0 };
-        let square_sdf = Square { size: Vec2::new(100.0, 10.0) };
-        let layers = vec![
-            Layer {
-                color: Color(1.0, 0.0, 0.0, 1.0),
-                shape: Object {
-                    x: (WIDTH / 2) as f32,
-                    y: (HEIGHT / 2) as f32,
-                    rotation: time * 5.0,
-                    scale: 1.0 + ((time * 2.0).sin() * 0.25),
-                    distortion: Vec::new(),
-                    sdf: Box::new(
-                        OpSmoothUnion {
-                            sdf_1: Box::new(circle_sdf),
-                            sdf_2: Box::new(square_sdf),
-                            fuzz: 25.0 + ((time * 2.0).sin() * 20.0),
-                        }
-                    ),
+        window.get_keys_pressed(minifb::KeyRepeat::Yes).map(|keys| {
+            for t in keys {
+                match t {
+                    Key::Up => objects[1].y += 1.0,
+                    Key::Down => objects[1].y -= 1.0,
+                    Key::Left => objects[1].x += 1.0,
+                    Key::Right => objects[1].x -= 1.0,
+                    _ => (),
                 }
             }
-        ];
+        });
+
+        let time = start_time.elapsed().as_millis() as f32 / 1000.0;
+
+        // Update first object
+        objects[0] = Object {
+            rotation: time * 5.0,
+            scale: 1.0 + ((time * 2.0).sin() * 0.25),
+            distortion: Vec::new(),
+            sdf: Box::new(OpSmoothUnion {
+                sdf_1: 1,
+                sdf_2: 2,
+                fuzz: 25.0 + ((time * 2.0).sin() * 20.0),
+            }),
+            ..objects[0]
+        };
 
         for x in 0..WIDTH {
             for y in 0..HEIGHT {
                 let point = Vec2::new(x as f32, y as f32);
 
                 for layer in &layers {
-                    let distance = layer.shape.get_distance(point);
+                    let distance = objects[layer.shape].get_distance(&objects, point);
                     buffer[x + y * WIDTH] = layer.color.mix_smooth(Color(0.0, 0.0, 0.0, 1.0), distance).into();
                 }
             }
