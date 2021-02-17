@@ -97,8 +97,8 @@ impl SDF for Object {
         let sin = radians.sin();
         let cos = radians.cos();
         let point = Vec2::new(
-            cos * point.x + sin * point.y,
-            cos * point.y - sin * point.x,
+            cos * point.x - sin * point.y,
+            sin * point.x + cos * point.y,
         );
         
         // TODO: Apply distortion
@@ -166,9 +166,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         // 0
         Object {
             transform: Transform {
-                x: (WIDTH / 2) as f32,
-                y: (HEIGHT / 2) as f32,
-                rotation: 1.0,
+                x: 0.0,
+                y: 0.0,
+                rotation: 0.0,
                 scale: 1.0,
             },
             distortion: Vec::new(),
@@ -210,15 +210,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         // 3
         Object {
             transform: Transform {
-                x: (WIDTH / 2) as f32,
+                x: 0.0,
                 y: (HEIGHT / 4) as f32,
-                rotation: 0.0,
+                rotation: 15.0,
                 scale: 1.0,
             },
             distortion: Vec::new(),
             parent_id: None,
             sdf: Box::new(Square {
-                size: Vec2::new(100.0, 10.0)
+                size: Vec2::new(10.0, 100.0)
             })
         }
     ];
@@ -243,12 +243,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                     Key::Down => selected_id = (selected_id - 1 + objects.len()) % objects.len(),
                     Key::NumPad8 => objects[selected_id].transform.y += 5.0,
                     Key::NumPad5 => objects[selected_id].transform.y -= 5.0,
-                    Key::NumPad4 => objects[selected_id].transform.x += 5.0,
-                    Key::NumPad6 => objects[selected_id].transform.x -= 5.0,
+                    Key::NumPad4 => objects[selected_id].transform.x -= 5.0,
+                    Key::NumPad6 => objects[selected_id].transform.x += 5.0,
                     Key::NumPad7 => objects[selected_id].transform.rotation -= 5.0,
                     Key::NumPad9 => objects[selected_id].transform.rotation += 5.0,
                     Key::NumPad1 => objects[selected_id].transform.scale -= 0.2,
                     Key::NumPad3 => objects[selected_id].transform.scale += 0.2,
+                    Key::NumPad2 => println!("{:?}", objects[selected_id].transform),
                     _ => (),
                 }
             }
@@ -289,10 +290,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         transforms.pop(); // Remove transform corresponding to the selected object
 
         // Render
-        for x in 0..WIDTH {
-            for y in 0..HEIGHT {
-                let point = Vec2::new(x as f32, y as f32);
+        for i in 0..WIDTH {
+            for j in 0..HEIGHT {
                 let mut color = Color(0.0, 0.0, 0.0, 1.0);
+                let point = Vec2::new(
+                    i as f32 - (WIDTH as f32 / 2.0),
+                    (HEIGHT as f32 / 2.0) - j as f32
+                );
 
                 for layer in &layers {
                     let distance = objects[layer.shape].get_distance(&objects, point);
@@ -301,7 +305,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
                 // Draw debug elements
                 if is_debug {
-                    let mut point = Vec2::new(x as f32, y as f32);
+                    let mut point = point.clone();
 
                     for transform in transforms.iter() {
                         // Translate
@@ -313,8 +317,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                         let sin = radians.sin();
                         let cos = radians.cos();
                         point = Vec2::new(
-                            cos * point.x + sin * point.y,
-                            cos * point.y - sin * point.x,
+                            cos * point.x - sin * point.y,
+                            sin * point.x + cos * point.y,
                         );
 
                         point = point / transform.scale;
@@ -327,7 +331,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     );
                 }
 
-                buffer[x + y * WIDTH] = color.into();
+                buffer[i + j * WIDTH] = color.into();
             }
         }
 
