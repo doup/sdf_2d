@@ -71,23 +71,29 @@ struct Layer {
     shape: usize,
 }
 
-struct Object {
+#[derive(Debug, Clone, Copy)]
+struct Transform {
     x: f32,
     y: f32,
     rotation: f32,
     scale: f32,
+}
+
+struct Object {
+    transform: Transform,
     distortion: Vec<Box<dyn SDF>>,
+    parent_id: Option<usize>,
     sdf: Box<dyn SDF>,
 }
 
 impl SDF for Object {
     fn get_distance(&self, arena: &Vec<Object>, point: Vec2) -> f32 {
         // Translate
-        let translate = Vec2::new(self.x as f32, self.y as f32);
+        let translate = Vec2::new(self.transform.x as f32, self.transform.y as f32);
         let point = point - translate;
 
         // Rotate
-        let radians = self.rotation.to_radians();
+        let radians = self.transform.rotation.to_radians();
         let sin = radians.sin();
         let cos = radians.cos();
         let point = Vec2::new(
@@ -98,7 +104,7 @@ impl SDF for Object {
         // TODO: Apply distortion
 
         // Get scaled distance
-        self.sdf.get_distance(arena, point / self.scale) * self.scale
+        self.sdf.get_distance(arena, point / self.transform.scale) * self.transform.scale
     }
 }
 
@@ -107,7 +113,7 @@ struct Circle {
 }
 
 impl SDF for Circle {
-    fn get_distance(&self, arena: &Vec<Object>, point: Vec2) -> f32 {
+    fn get_distance(&self, _arena: &Vec<Object>, point: Vec2) -> f32 {
         point.length() - self.radius
     }
 }
@@ -117,7 +123,7 @@ struct Square {
 }
 
 impl SDF for Square {
-    fn get_distance(&self, arena: &Vec<Object>, point: Vec2) -> f32 {
+    fn get_distance(&self, _arena: &Vec<Object>, point: Vec2) -> f32 {
         let d = point.abs() - self.size;
         let a = Vec2::new(d.x.max(0.0), d.y.max(0.0));
 
@@ -143,6 +149,8 @@ impl SDF for OpSmoothUnion {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
+    let mut is_debug = true;
+    let mut selected_id = 0;
     let mut window = Window::new(
         "2D Signal Distance Fields - ESC to exit",
         WIDTH,
@@ -157,11 +165,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut objects = vec![
         // 0
         Object {
-            x: (WIDTH / 2) as f32,
-            y: (HEIGHT / 2) as f32,
-            rotation: 1.0,
-            scale: 1.0,
+            transform: Transform {
+                x: (WIDTH / 2) as f32,
+                y: (HEIGHT / 2) as f32,
+                rotation: 1.0,
+                scale: 1.0,
+            },
             distortion: Vec::new(),
+            parent_id: None,
             sdf: Box::new(OpSmoothUnion {
                 sdf_1: 1,
                 sdf_2: 2,
@@ -170,22 +181,42 @@ fn main() -> Result<(), Box<dyn Error>> {
         },
         // 1
         Object {
-            x: 0.0,
-            y: 0.0,
-            rotation: 0.0,
-            scale: 1.0,
+            transform: Transform {
+                x: 0.0,
+                y: 0.0,
+                rotation: 0.0,
+                scale: 1.0,
+            },
             distortion: Vec::new(),
+            parent_id: Some(0),
             sdf: Box::new(Circle {
                 radius: 50.0,
             })
         },
         // 2
         Object {
-            x: 0.0,
-            y: 0.0,
-            rotation: 0.0,
-            scale: 1.0,
+            transform: Transform {
+                x: 0.0,
+                y: 0.0,
+                rotation: 0.0,
+                scale: 1.0,
+            },
             distortion: Vec::new(),
+            parent_id: Some(0),
+            sdf: Box::new(Square {
+                size: Vec2::new(100.0, 10.0)
+            })
+        },
+        // 3
+        Object {
+            transform: Transform {
+                x: (WIDTH / 2) as f32,
+                y: (HEIGHT / 4) as f32,
+                rotation: 0.0,
+                scale: 1.0,
+            },
+            distortion: Vec::new(),
+            parent_id: None,
             sdf: Box::new(Square {
                 size: Vec2::new(100.0, 10.0)
             })
@@ -196,6 +227,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         Layer {
             color: Color(1.0, 0.0, 0.0, 1.0),
             shape: 0,
+        },
+        Layer {
+            color: Color(0.0, 1.0, 1.0, 1.0),
+            shape: 3,
         }
     ];
 
@@ -203,10 +238,17 @@ fn main() -> Result<(), Box<dyn Error>> {
         window.get_keys_pressed(minifb::KeyRepeat::Yes).map(|keys| {
             for t in keys {
                 match t {
-                    Key::Up => objects[1].y += 1.0,
-                    Key::Down => objects[1].y -= 1.0,
-                    Key::Left => objects[1].x += 1.0,
-                    Key::Right => objects[1].x -= 1.0,
+                    Key::D => is_debug = !is_debug,
+                    Key::Up => selected_id = (selected_id + 1) % objects.len(),
+                    Key::Down => selected_id = (selected_id - 1 + objects.len()) % objects.len(),
+                    Key::NumPad8 => objects[selected_id].transform.y += 5.0,
+                    Key::NumPad5 => objects[selected_id].transform.y -= 5.0,
+                    Key::NumPad4 => objects[selected_id].transform.x += 5.0,
+                    Key::NumPad6 => objects[selected_id].transform.x -= 5.0,
+                    Key::NumPad7 => objects[selected_id].transform.rotation -= 5.0,
+                    Key::NumPad9 => objects[selected_id].transform.rotation += 5.0,
+                    Key::NumPad1 => objects[selected_id].transform.scale -= 0.2,
+                    Key::NumPad3 => objects[selected_id].transform.scale += 0.2,
                     _ => (),
                 }
             }
@@ -216,25 +258,76 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         // Update first object
         objects[0] = Object {
-            rotation: time * 5.0,
-            scale: 1.0 + ((time * 2.0).sin() * 0.25),
+            transform: Transform {
+                rotation: time * 5.0,
+                scale: 1.0 + ((time * 2.0).sin() * 0.25),
+                ..objects[0].transform
+            },
+            parent_id: objects[0].parent_id,
             distortion: Vec::new(),
             sdf: Box::new(OpSmoothUnion {
                 sdf_1: 1,
                 sdf_2: 2,
                 fuzz: 25.0 + ((time * 2.0).sin() * 20.0),
             }),
-            ..objects[0]
         };
 
+        // Selected parents transforms tree
+        let mut parent_id = selected_id;
+        let mut transforms: Vec<Transform> = vec![];
+
+        loop {
+            transforms.push(objects[parent_id].transform);
+
+            match objects[parent_id].parent_id {
+                Some(id) => parent_id = id,
+                None => break,
+            }
+        }
+
+        transforms = transforms.into_iter().rev().collect(); // Reverse transforms
+        transforms.pop(); // Remove transform corresponding to the selected object
+
+        // Render
         for x in 0..WIDTH {
             for y in 0..HEIGHT {
                 let point = Vec2::new(x as f32, y as f32);
+                let mut color = Color(0.0, 0.0, 0.0, 1.0);
 
                 for layer in &layers {
                     let distance = objects[layer.shape].get_distance(&objects, point);
-                    buffer[x + y * WIDTH] = layer.color.mix_smooth(Color(0.0, 0.0, 0.0, 1.0), distance).into();
+                    color = layer.color.mix_smooth(color, distance);
                 }
+
+                // Draw debug elements
+                if is_debug {
+                    let mut point = Vec2::new(x as f32, y as f32);
+
+                    for transform in transforms.iter() {
+                        // Translate
+                        let translate = Vec2::new(transform.x as f32, transform.y as f32);
+                        point = point - translate;
+
+                        // Rotate
+                        let radians = transform.rotation.to_radians();
+                        let sin = radians.sin();
+                        let cos = radians.cos();
+                        point = Vec2::new(
+                            cos * point.x + sin * point.y,
+                            cos * point.y - sin * point.x,
+                        );
+
+                        point = point / transform.scale;
+                    }
+
+                    let distance = objects[selected_id].get_distance(&objects, point);
+                    color = color.mix_smooth(
+                        Color(1.0, 1.0, 0.0, 1.0), 
+                        smoothstep(0.0, 1.5, distance) - smoothstep(1.5, 3.0, distance),
+                    );
+                }
+
+                buffer[x + y * WIDTH] = color.into();
             }
         }
 
