@@ -9,3 +9,4 @@ edition = "2018"
 [dependencies]
 bevy_math = "0.4.0"
 minifb = "0.19.2"
+rayon = "1.0"
