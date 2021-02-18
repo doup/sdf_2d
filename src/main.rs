@@ -290,50 +290,53 @@ fn main() -> Result<(), Box<dyn Error>> {
         transforms.pop(); // Remove transform corresponding to the selected object
 
         // Render
-        for i in 0..WIDTH {
-            for j in 0..HEIGHT {
-                let mut color = Color(0.0, 0.0, 0.0, 1.0);
-                let point = Vec2::new(
-                    i as f32 - (WIDTH as f32 / 2.0),
-                    (HEIGHT as f32 / 2.0) - j as f32
-                );
+        buffer
+            .chunks_mut(WIDTH)
+            .enumerate()
+            .for_each(|(j, chunk)| {
+                for i in 0..WIDTH {
+                    let mut color = Color(0.0, 0.0, 0.0, 1.0);
+                    let point = Vec2::new(
+                        i as f32 - (WIDTH as f32 / 2.0),
+                        (HEIGHT as f32 / 2.0) - j as f32
+                    );
 
-                for layer in &layers {
-                    let distance = objects[layer.shape].get_distance(&objects, point);
-                    color = layer.color.mix_smooth(color, distance);
-                }
-
-                // Draw debug elements
-                if is_debug {
-                    let mut point = point.clone();
-
-                    for transform in transforms.iter() {
-                        // Translate
-                        let translate = Vec2::new(transform.x as f32, transform.y as f32);
-                        point = point - translate;
-
-                        // Rotate
-                        let radians = transform.rotation.to_radians();
-                        let sin = radians.sin();
-                        let cos = radians.cos();
-                        point = Vec2::new(
-                            cos * point.x - sin * point.y,
-                            sin * point.x + cos * point.y,
-                        );
-
-                        point = point / transform.scale;
+                    for layer in &layers {
+                        let distance = objects[layer.shape].get_distance(&objects, point);
+                        color = layer.color.mix_smooth(color, distance);
                     }
 
-                    let distance = objects[selected_id].get_distance(&objects, point);
-                    color = color.mix_smooth(
-                        Color(1.0, 1.0, 0.0, 1.0), 
-                        smoothstep(0.0, 1.5, distance) - smoothstep(1.5, 3.0, distance),
-                    );
-                }
+                    // Draw debug elements
+                    if is_debug {
+                        let mut point = point.clone();
 
-                buffer[i + j * WIDTH] = color.into();
-            }
-        }
+                        for transform in transforms.iter() {
+                            // Translate
+                            let translate = Vec2::new(transform.x as f32, transform.y as f32);
+                            point = point - translate;
+
+                            // Rotate
+                            let radians = transform.rotation.to_radians();
+                            let sin = radians.sin();
+                            let cos = radians.cos();
+                            point = Vec2::new(
+                                cos * point.x - sin * point.y,
+                                sin * point.x + cos * point.y,
+                            );
+
+                            point = point / transform.scale;
+                        }
+
+                        let distance = objects[selected_id].get_distance(&objects, point);
+                        color = color.mix_smooth(
+                            Color(1.0, 1.0, 0.0, 1.0), 
+                            smoothstep(0.0, 1.5, distance) - smoothstep(1.5, 3.0, distance),
+                        );
+                    }
+
+                    chunk[i] = color.into();
+                }
+            });
 
         window.update_with_buffer(&buffer, WIDTH, HEIGHT)?;
     }
