@@ -7,11 +7,6 @@ use minifb::{Key, Window, WindowOptions};
 const WIDTH: usize = 600;
 const HEIGHT: usize = 600;
 
-fn from_u8_rgb(r: u8, g: u8, b: u8) -> u32 {
-    let (r, g, b) = (r as u32, g as u32, b as u32);
-    ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF)
-}
-
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
     let t = t.clamp(0.0, 1.0);
     a * (1.0 - t) + b * t
@@ -58,11 +53,11 @@ impl Color {
 
 impl From<Color> for u32 {
     fn from(item: Color) -> Self {
-        from_u8_rgb(
-            (item.0 * 255.0) as u8,
-            (item.1 * 255.0) as u8,
-            (item.2 * 255.0) as u8,
-        )
+        let r = (item.0 * 255.0) as u32;
+        let g = (item.1 * 255.0) as u32;
+        let b = (item.2 * 255.0) as u32;
+
+        ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF)
     }
 }
 
