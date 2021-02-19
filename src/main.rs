@@ -1,6 +1,6 @@
 extern crate minifb;
 
-use bevy_math::Vec2;
+use bevy_math::{Mat3, Vec2};
 use std::{error::Error, time::Instant};
 use minifb::{Key, Window, WindowOptions};
 
@@ -74,6 +74,34 @@ struct Transform {
     scale: f32,
 }
 
+impl Transform {
+    fn to_matrix(&self) -> Mat3 {
+        Mat3::from_scale_angle_translation(
+            Vec2::new(1.0, 1.0),
+            -self.rotation.to_radians(),
+            Vec2::new(self.x, self.y),
+        )
+    }
+
+    fn map(&self, point: Vec2) -> Vec2 {
+        // Translate
+        let translate = Vec2::new(self.x as f32, self.y as f32);
+        let point = point - translate;
+
+        // Rotate
+        let radians = self.rotation.to_radians();
+        let sin = radians.sin();
+        let cos = radians.cos();
+        let point = Vec2::new(
+            cos * point.x - sin * point.y,
+            sin * point.x + cos * point.y,
+        );
+
+        // Get scaled distance
+        point / self.scale
+    }
+}
+
 struct Object {
     transform: Transform,
     distortion: Vec<Box<dyn SDF>>,
@@ -83,23 +111,14 @@ struct Object {
 
 impl SDF for Object {
     fn get_distance(&self, arena: &Vec<Object>, point: Vec2) -> f32 {
-        // Translate
-        let translate = Vec2::new(self.transform.x as f32, self.transform.y as f32);
-        let point = point - translate;
-
-        // Rotate
-        let radians = self.transform.rotation.to_radians();
-        let sin = radians.sin();
-        let cos = radians.cos();
-        let point = Vec2::new(
-            cos * point.x - sin * point.y,
-            sin * point.x + cos * point.y,
-        );
-        
+        // Direct
+        let point = self.transform.map(point);
         // TODO: Apply distortion
+        self.sdf.get_distance(arena, point) * self.transform.scale
 
-        // Get scaled distance
-        self.sdf.get_distance(arena, point / self.transform.scale) * self.transform.scale
+        // Matrix
+        // let point = self.transform.to_matrix().inverse() * point.extend(1.0);
+        // self.sdf.get_distance(arena, point.xy() / self.transform.scale) * self.transform.scale
     }
 }
 
@@ -306,20 +325,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                         let mut point = point.clone();
 
                         for transform in transforms.iter() {
-                            // Translate
-                            let translate = Vec2::new(transform.x as f32, transform.y as f32);
-                            point = point - translate;
+                            // Direct
+                            point = transform.map(point);
 
-                            // Rotate
-                            let radians = transform.rotation.to_radians();
-                            let sin = radians.sin();
-                            let cos = radians.cos();
-                            point = Vec2::new(
-                                cos * point.x - sin * point.y,
-                                sin * point.x + cos * point.y,
-                            );
-
-                            point = point / transform.scale;
+                            // Matrix
+                            // point = (transform.to_matrix().inverse() * point.extend(1.0)).xy() / transform.scale;
                         }
 
                         let distance = objects[selected_id].get_distance(&objects, point);
