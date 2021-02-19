@@ -273,6 +273,20 @@ fn main() -> Result<(), Box<dyn Error>> {
             sdf: Box::new(Square {
                 size: Vec2::new(10.0, 100.0)
             })
+        },
+        // 4
+        Object {
+            transform: Transform {
+                x: 0.0,
+                y: -100.0,
+                rotation: 0.0,
+                scale: 1.0,
+            },
+            distortion: Vec::new(),
+            parent_id: None,
+            sdf: Box::new(Circle {
+                radius: 50.0,
+            })
         }
     ];
 
@@ -284,6 +298,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         Layer {
             color: Color(1.0, 0.0, 0.0, 1.0),
             shape: 0,
+        },
+        Layer {
+            color: Color(0.5, 0.1, 1.0, 1.0),
+            shape: 4,
         },
     ];
 
