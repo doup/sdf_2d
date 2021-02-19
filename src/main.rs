@@ -239,13 +239,13 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let layers = vec![
         Layer {
+            color: Color(0.0, 1.0, 1.0, 1.0),
+            shape: 3,
+        },
+        Layer {
             color: Color(1.0, 0.0, 0.0, 1.0),
             shape: 0,
         },
-        Layer {
-            color: Color(0.0, 1.0, 1.0, 1.0),
-            shape: 3,
-        }
     ];
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
@@ -315,7 +315,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         (HEIGHT as f32 / 2.0) - j as f32
                     );
 
-                    for layer in &layers {
+                    for layer in (&layers).into_iter().rev() {
                         let distance = objects[layer.shape].get_distance(&objects, point);
                         color = layer.color.mix_smooth(color, distance);
                     }
