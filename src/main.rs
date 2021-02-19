@@ -75,6 +75,22 @@ struct Transform {
 }
 
 impl Transform {
+    fn apply(&mut self, transform: Transform) {
+        self.x += transform.x;
+        self.y += transform.y;
+        self.rotation += transform.rotation;
+        self.scale *= transform.scale;
+    }
+
+    fn new() -> Transform {
+        Transform {
+            x: 0.0,
+            y: 0.0,
+            rotation: 0.0,
+            scale: 1.0,
+        }
+    }
+
     fn to_matrix(&self) -> Mat3 {
         Mat3::from_scale_angle_translation(
             Vec2::new(1.0, 1.0),
@@ -159,6 +175,29 @@ impl SDF for OpSmoothUnion {
         let h = (0.5 + 0.5 * (distance_2 - distance_1) / self.fuzz).clamp(0.0, 1.0 );
         return lerp(distance_2, distance_1, h) - self.fuzz * h * (1.0 - h);
     }
+}
+
+fn get_debug_transform(mut parent_id: usize, arena: &Vec<Object>) -> Transform {
+    let mut transforms: Vec<Transform> = vec![];
+    let mut debug_transform = Transform::new();
+
+    loop {
+        transforms.push(arena[parent_id].transform);
+
+        match arena[parent_id].parent_id {
+            Some(id) => parent_id = id,
+            None => break,
+        }
+    }
+
+    transforms = transforms.into_iter().rev().collect(); // Reverse transforms
+    transforms.pop(); // Remove transform corresponding to the selected object
+
+    for transform in transforms {
+        debug_transform.apply(transform);
+    }
+
+    debug_transform
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -288,20 +327,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         };
 
         // Selected parents transforms tree
-        let mut parent_id = selected_id;
-        let mut transforms: Vec<Transform> = vec![];
-
-        loop {
-            transforms.push(objects[parent_id].transform);
-
-            match objects[parent_id].parent_id {
-                Some(id) => parent_id = id,
-                None => break,
-            }
-        }
-
-        transforms = transforms.into_iter().rev().collect(); // Reverse transforms
-        transforms.pop(); // Remove transform corresponding to the selected object
+        let debug_transform = get_debug_transform(selected_id, &objects);
 
         // Render
         buffer
@@ -322,16 +348,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
                     // Draw debug elements
                     if is_debug {
-                        let mut point = point.clone();
-
-                        for transform in transforms.iter() {
-                            // Direct
-                            point = transform.map(point);
-
-                            // Matrix
-                            // point = (transform.to_matrix().inverse() * point.extend(1.0)).xy() / transform.scale;
-                        }
-
+                        let point = debug_transform.map(point.clone());
                         let distance = objects[selected_id].get_distance(&objects, point);
                         let border_width = 2.0;
 
