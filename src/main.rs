@@ -317,7 +317,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
                     for layer in (&layers).into_iter().rev() {
                         let distance = objects[layer.shape].get_distance(&objects, point);
-                        color = layer.color.mix_smooth(color, distance);
+                        color = layer.color.mix(color, distance);
                     }
 
                     // Draw debug elements
@@ -333,9 +333,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                         }
 
                         let distance = objects[selected_id].get_distance(&objects, point);
-                        color = color.mix_smooth(
+                        let border_width = 2.0;
+
+                        color = color.mix(
                             Color(1.0, 1.0, 0.0, 1.0), 
-                            smoothstep(0.0, 1.5, distance) - smoothstep(1.5, 3.0, distance),
+                            smoothstep(0.0, border_width, distance) - smoothstep(border_width, border_width * 2.0, distance),
                         );
                     }
 
