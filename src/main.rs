@@ -3,6 +3,7 @@ extern crate minifb;
 use bevy_math::{Mat3, Vec2};
 use std::{error::Error, time::Instant};
 use minifb::{Key, Window, WindowOptions};
+use rayon::prelude::*;
 
 const WIDTH: usize = 600;
 const HEIGHT: usize = 600;
@@ -120,9 +121,9 @@ impl Transform {
 
 struct Object {
     transform: Transform,
-    distortion: Vec<Box<dyn SDF>>,
+    distortion: Vec<Box<dyn SDF + Sync + Send>>,
     parent_id: Option<usize>,
-    sdf: Box<dyn SDF>,
+    sdf: Box<dyn SDF + Sync + Send>,
 }
 
 impl SDF for Object {
@@ -349,7 +350,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         // Render
         buffer
-            .chunks_mut(WIDTH)
+            .par_chunks_mut(WIDTH)
             .enumerate()
             .for_each(|(j, chunk)| {
                 for i in 0..WIDTH {
