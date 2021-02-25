@@ -202,6 +202,7 @@ fn get_debug_transform(mut parent_id: usize, arena: &Vec<Object>) -> Transform {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    let mut frame = 0;
     let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
     let mut is_debug = true;
     let mut selected_id = 0;
@@ -328,6 +329,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         });
 
         let time = start_time.elapsed().as_millis() as f32 / 1000.0;
+        let fps = ((frame as f32) / time) as u32;
 
         // Update first object
         objects[0] = Object {
@@ -381,7 +383,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
             });
 
+        window.set_title(&format!("2D Signal Distance Fields - ESC to exit - {}FPS", fps));
         window.update_with_buffer(&buffer, WIDTH, HEIGHT)?;
+        frame += 1;
     }
 
     Ok(())
