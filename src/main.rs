@@ -25,6 +25,26 @@ fn smoothstep(a: f32, b: f32, t: f32) -> f32 {
     }
 }
 
+trait Distorsion {
+    fn map(&self, point: Vec2) -> Vec2;
+}
+
+struct Wave {
+    x_amplitude: f32,
+    x_freq: f32,
+    y_amplitude: f32,
+    y_freq: f32,
+}
+
+impl Distorsion for Wave {
+    fn map(&self, point: Vec2) -> Vec2 {
+        Vec2::new(
+            point.x + ((point.y / HEIGHT as f32) * self.x_freq).sin() * self.x_amplitude,
+            point.y + ((point.x / WIDTH as f32) * self.y_freq).sin() * self.y_amplitude,
+        )
+    }
+}
+
 trait SDF {
     fn get_distance(&self, arena: &Vec<Object>, point: Vec2) -> f32;
 }
@@ -121,16 +141,21 @@ impl Transform {
 
 struct Object {
     transform: Transform,
-    distortion: Vec<Box<dyn SDF + Sync + Send>>,
+    distortion: Vec<Box<dyn Distorsion + Sync + Send>>,
     parent_id: Option<usize>,
     sdf: Box<dyn SDF + Sync + Send>,
 }
 
 impl SDF for Object {
     fn get_distance(&self, arena: &Vec<Object>, point: Vec2) -> f32 {
-        // Direct
-        let point = self.transform.map(point);
-        // TODO: Apply distortion
+        // Transform point
+        let mut point = self.transform.map(point);
+
+        // Apply distortion
+        for dist in &self.distortion {
+            point = dist.map(point);
+        }
+
         self.sdf.get_distance(arena, point) * self.transform.scale
 
         // Matrix
@@ -284,10 +309,17 @@ fn main() -> Result<(), Box<dyn Error>> {
                 rotation: 0.0,
                 scale: 1.0,
             },
-            distortion: Vec::new(),
+            distortion: vec![
+                Box::new(Wave {
+                    x_amplitude: 20.0,
+                    x_freq: 100.0,
+                    y_amplitude: 1.0,
+                    y_freq: 1.0,
+                })
+            ],
             parent_id: None,
             sdf: Box::new(Circle {
-                radius: 50.0,
+                radius: 100.0,
             })
         }
     ];
@@ -346,6 +378,14 @@ fn main() -> Result<(), Box<dyn Error>> {
                 fuzz: 25.0 + ((time * 2.0).sin() * 20.0),
             }),
         };
+
+        // Animate wave distortion
+        objects[4].distortion[0] = Box::new(Wave {
+            x_amplitude: 11.0 + ((time * 1.5).sin() * 10.0),
+            x_freq: 51.0 + ((time * 2.5).sin() * 50.0),
+            y_amplitude: 1.0,
+            y_freq: 1.0,
+        });
 
         // Selected parents transforms tree
         let debug_transform = get_debug_transform(selected_id, &objects);
