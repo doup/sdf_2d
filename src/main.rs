@@ -396,15 +396,20 @@ fn main() -> Result<(), Box<dyn Error>> {
             .enumerate()
             .for_each(|(j, chunk)| {
                 for i in 0..WIDTH {
-                    let mut color = Color(0.0, 0.0, 0.0, 1.0);
+                    let mut color = Color(0.0, 0.0, 0.0, 0.0); // Background color
                     let point = Vec2::new(
                         i as f32 - (WIDTH as f32 / 2.0),
                         (HEIGHT as f32 / 2.0) - j as f32
                     );
 
-                    for layer in (&layers).into_iter().rev() {
+                    for layer in &layers {
                         let distance = objects[layer.shape].get_distance(&objects, point);
                         color = layer.color.mix(color, distance);
+
+                        // Alpha check to skip below layers
+                        if color.3 == 1.0 {
+                            break;
+                        }
                     }
 
                     // Draw debug elements
