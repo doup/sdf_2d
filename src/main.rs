@@ -1,206 +1,48 @@
 extern crate minifb;
 
-use bevy_math::{Mat3, Vec2};
-use std::{error::Error, time::Instant};
+use bevy_math::{Vec2};
+use std::{collections::HashMap, error::Error, time::Instant};
 use minifb::{Key, Window, WindowOptions};
 use rayon::prelude::*;
 
+// Project modules
+mod color;
+mod distortion;
+mod utils;
+mod sdf;
+mod transform;
+
+use color::*;
+use distortion::*;
+use utils::*;
+use sdf::*;
+use transform::*;
+
+// Main
 const WIDTH: usize = 600;
 const HEIGHT: usize = 600;
 
-fn lerp(a: f32, b: f32, t: f32) -> f32 {
-    let t = t.clamp(0.0, 1.0);
-    a * (1.0 - t) + b * t
+struct Char {
+    width: f32,
+    height: f32,
+    x: f32,
+    x_advance: f32,
+    x_offset: f32,
+    y: f32,
+    y_offset: f32,
 }
 
-/// Given a `a`, `b` & `t`. Where `t` is between `a` & `b`
-/// it returns a value between `0.0` and `1.0`. When `t=a` then
-/// the value is `0.0`, when `t=b` the value is `1.0`. 
-fn smoothstep(a: f32, b: f32, t: f32) -> f32 {
-    if a == b {
-        a
-    } else {
-        let t = ((t - a) / (b - a)).clamp(0.0, 1.0);
-        t * t * (3.0 - 2.0 * t)
-    }
-}
-
-trait Distorsion {
-    fn map(&self, point: Vec2) -> Vec2;
-}
-
-struct Wave {
-    x_amplitude: f32,
-    x_freq: f32,
-    y_amplitude: f32,
-    y_freq: f32,
-}
-
-impl Distorsion for Wave {
-    fn map(&self, point: Vec2) -> Vec2 {
-        Vec2::new(
-            point.x + ((point.y / HEIGHT as f32) * self.x_freq).sin() * self.x_amplitude,
-            point.y + ((point.x / WIDTH as f32) * self.y_freq).sin() * self.y_amplitude,
-        )
-    }
-}
-
-trait SDF {
-    fn get_distance(&self, arena: &Vec<Object>, point: Vec2) -> f32;
-}
-
-#[derive(Debug)]
-struct Color(f32, f32, f32, f32);
-
-impl Color {
-    fn mix(&self, color: Color, t: f32) -> Color {
-        Color(
-            lerp(self.0, color.0, t),
-            lerp(self.1, color.1, t),
-            lerp(self.2, color.2, t),
-            lerp(self.3, color.3, t),
-        )
-    }
-
-    fn mix_smooth(&self, color: Color, t: f32) -> Color {
-        Color(
-            smoothstep(self.0, color.0, t),
-            smoothstep(self.1, color.1, t),
-            smoothstep(self.2, color.2, t),
-            smoothstep(self.3, color.3, t),
-        )
-    }
-}
-
-impl From<Color> for u32 {
-    fn from(item: Color) -> Self {
-        let r = (item.0 * 255.0) as u32;
-        let g = (item.1 * 255.0) as u32;
-        let b = (item.2 * 255.0) as u32;
-
-        ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF)
-    }
+struct Font {
+    line_height: f32,
+    base: f32,
+    scale_width: f32,
+    scale_height: f32,
+    chars: HashMap<u8, Char>,
 }
 
 struct Layer {
     color: Color,
     shape: usize,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct Transform {
-    x: f32,
-    y: f32,
-    rotation: f32,
-    scale: f32,
-}
-
-impl Transform {
-    fn apply(&mut self, transform: Transform) {
-        self.x += transform.x;
-        self.y += transform.y;
-        self.rotation += transform.rotation;
-        self.scale *= transform.scale;
-    }
-
-    fn new() -> Transform {
-        Transform {
-            x: 0.0,
-            y: 0.0,
-            rotation: 0.0,
-            scale: 1.0,
-        }
-    }
-
-    fn to_matrix(&self) -> Mat3 {
-        Mat3::from_scale_angle_translation(
-            Vec2::new(1.0, 1.0),
-            -self.rotation.to_radians(),
-            Vec2::new(self.x, self.y),
-        )
-    }
-
-    fn map(&self, point: Vec2) -> Vec2 {
-        // Translate
-        let translate = Vec2::new(self.x as f32, self.y as f32);
-        let point = point - translate;
-
-        // Rotate
-        let radians = self.rotation.to_radians();
-        let sin = radians.sin();
-        let cos = radians.cos();
-        let point = Vec2::new(
-            cos * point.x - sin * point.y,
-            sin * point.x + cos * point.y,
-        );
-
-        // Get scaled distance
-        point / self.scale
-    }
-}
-
-struct Object {
-    transform: Transform,
-    distortion: Vec<Box<dyn Distorsion + Sync + Send>>,
-    parent_id: Option<usize>,
-    sdf: Box<dyn SDF + Sync + Send>,
-}
-
-impl SDF for Object {
-    fn get_distance(&self, arena: &Vec<Object>, point: Vec2) -> f32 {
-        // Transform point
-        let mut point = self.transform.map(point);
-
-        // Apply distortion
-        for dist in &self.distortion {
-            point = dist.map(point);
-        }
-
-        self.sdf.get_distance(arena, point) * self.transform.scale
-
-        // Matrix
-        // let point = self.transform.to_matrix().inverse() * point.extend(1.0);
-        // self.sdf.get_distance(arena, point.xy() / self.transform.scale) * self.transform.scale
-    }
-}
-
-struct Circle {
-    radius: f32,
-}
-
-impl SDF for Circle {
-    fn get_distance(&self, _arena: &Vec<Object>, point: Vec2) -> f32 {
-        point.length() - self.radius
-    }
-}
-
-struct Square {
-    size: Vec2,
-}
-
-impl SDF for Square {
-    fn get_distance(&self, _arena: &Vec<Object>, point: Vec2) -> f32 {
-        let d = point.abs() - self.size;
-        let a = Vec2::new(d.x.max(0.0), d.y.max(0.0));
-
-        a.length() + d.x.max(d.y).min(0.0)
-    }
-}
-
-struct OpSmoothUnion {
-    sdf_1: usize,
-    sdf_2: usize,
-    fuzz: f32,
-}
-
-impl SDF for OpSmoothUnion {
-    fn get_distance(&self, arena: &Vec<Object>, point: Vec2) -> f32 {
-        let distance_1 = arena[self.sdf_1].get_distance(arena, point);
-        let distance_2 = arena[self.sdf_2].get_distance(arena, point);
-
-        let h = (0.5 + 0.5 * (distance_2 - distance_1) / self.fuzz).clamp(0.0, 1.0 );
-        return lerp(distance_2, distance_1, h) - self.fuzz * h * (1.0 - h);
-    }
 }
 
 fn get_debug_transform(mut parent_id: usize, arena: &Vec<Object>) -> Transform {
@@ -253,7 +95,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             },
             distortion: Vec::new(),
             parent_id: None,
-            sdf: Box::new(OpSmoothUnion {
+            sdf: Box::new(operator::OpSmoothUnion {
                 sdf_1: 1,
                 sdf_2: 2,
                 fuzz: 25.0,
@@ -269,7 +111,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             },
             distortion: Vec::new(),
             parent_id: Some(0),
-            sdf: Box::new(Circle {
+            sdf: Box::new(primitive::Circle {
                 radius: 50.0,
             })
         },
@@ -283,7 +125,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             },
             distortion: Vec::new(),
             parent_id: Some(0),
-            sdf: Box::new(Square {
+            sdf: Box::new(primitive::Square {
                 size: Vec2::new(100.0, 10.0)
             })
         },
@@ -297,7 +139,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             },
             distortion: Vec::new(),
             parent_id: None,
-            sdf: Box::new(Square {
+            sdf: Box::new(primitive::Square {
                 size: Vec2::new(10.0, 100.0)
             })
         },
@@ -318,7 +160,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 })
             ],
             parent_id: None,
-            sdf: Box::new(Circle {
+            sdf: Box::new(primitive::Circle {
                 radius: 100.0,
             })
         }
@@ -372,7 +214,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             },
             parent_id: objects[0].parent_id,
             distortion: Vec::new(),
-            sdf: Box::new(OpSmoothUnion {
+            sdf: Box::new(operator::OpSmoothUnion {
                 sdf_1: 1,
                 sdf_2: 2,
                 fuzz: 25.0 + ((time * 2.0).sin() * 20.0),
@@ -383,8 +225,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         objects[4].distortion[0] = Box::new(Wave {
             x_amplitude: 11.0 + ((time * 1.5).sin() * 10.0),
             x_freq: 51.0 + ((time * 2.5).sin() * 50.0),
-            y_amplitude: 1.0,
-            y_freq: 1.0,
+            y_amplitude: 11.0 + ((time * 0.5).sin() * 10.0),
+            y_freq: 21.0 + ((time * 0.25).sin() * 20.0),
         });
 
         // Selected parents transforms tree
@@ -434,49 +276,4 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_lerp() {
-        // Test clamping
-        assert_eq!(lerp(0.0, 1.0, -1.0), 0.0);
-        assert_eq!(lerp(0.0, 1.0, 2.0), 1.0);
-
-        // 0.0 to 1.0
-        assert_eq!(lerp(0.0, 1.0, 0.0), 0.0);
-        assert_eq!(lerp(0.0, 1.0, 0.25), 0.25);
-        assert_eq!(lerp(0.0, 1.0, 0.5), 0.5);
-        assert_eq!(lerp(0.0, 1.0, 0.75), 0.75);
-        assert_eq!(lerp(0.0, 1.0, 1.0), 1.0);
-
-        // 1.0 to 0.0
-        assert_eq!(lerp(1.0, 0.0, 0.25), 0.75);
-        assert_eq!(lerp(1.0, 0.0, 0.5), 0.5);
-        assert_eq!(lerp(1.0, 0.0, 0.75), 0.25);
-    }
-
-    #[test]
-    fn test_smoothstep() {
-        assert_eq!(smoothstep(0.0, 10.0, -5.0), 0.0);
-        assert_eq!(smoothstep(0.0, 10.0,  0.0), 0.0);
-        assert_eq!(smoothstep(0.0, 10.0,  5.0), 0.5);
-        assert_eq!(smoothstep(0.0, 10.0, 10.0), 1.0);
-        assert_eq!(smoothstep(0.0, 10.0, 15.0), 1.0);
-
-        assert_eq!(smoothstep(10.0, 0.0, 15.0), 0.0);
-        assert_eq!(smoothstep(10.0, 0.0, 10.0), 0.0);
-        assert_eq!(smoothstep(10.0, 0.0,  5.0), 0.5);
-        assert_eq!(smoothstep(10.0, 0.0,  0.0), 1.0);
-        assert_eq!(smoothstep(10.0, 0.0, -5.0), 1.0);
-
-        assert_eq!(smoothstep(-10.0, -20.0,  -5.0), 0.0);
-        assert_eq!(smoothstep(-10.0, -20.0, -10.0), 0.0);
-        assert_eq!(smoothstep(-10.0, -20.0, -15.0), 0.5);
-        assert_eq!(smoothstep(-10.0, -20.0, -20.0), 1.0);
-        assert_eq!(smoothstep(-10.0, -20.0, -25.0), 1.0);
-    }
 }
