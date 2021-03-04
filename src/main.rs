@@ -153,6 +153,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             },
             distortion: vec![
                 Box::new(Wave {
+                    width: WIDTH as f32,
+                    height: HEIGHT as f32,
                     x_amplitude: 20.0,
                     x_freq: 100.0,
                     y_amplitude: 1.0,
@@ -223,6 +225,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         // Animate wave distortion
         objects[4].distortion[0] = Box::new(Wave {
+            width: WIDTH as f32,
+            height: HEIGHT as f32,
             x_amplitude: 11.0 + ((time * 1.5).sin() * 10.0),
             x_freq: 51.0 + ((time * 2.5).sin() * 50.0),
             y_amplitude: 11.0 + ((time * 0.5).sin() * 10.0),

@@ -5,6 +5,8 @@ pub trait Distorsion {
 }
 
 pub struct Wave {
+    pub width: f32,
+    pub height: f32,
     pub x_amplitude: f32,
     pub x_freq: f32,
     pub y_amplitude: f32,
@@ -14,8 +16,8 @@ pub struct Wave {
 impl Distorsion for Wave {
     fn map(&self, point: Vec2) -> Vec2 {
         Vec2::new(
-            point.x + ((point.y /*/ HEIGHT as f32*/) * self.x_freq).sin() * self.x_amplitude,
-            point.y + ((point.x /*/ WIDTH as f32*/) * self.y_freq).sin() * self.y_amplitude,
+            point.x + ((point.y / self.height) * self.x_freq).sin() * self.x_amplitude,
+            point.y + ((point.x / self.width) * self.y_freq).sin() * self.y_amplitude,
         )
     }
 }
