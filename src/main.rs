@@ -159,6 +159,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     x_freq: 100.0,
                     y_amplitude: 1.0,
                     y_freq: 1.0,
+                    time: 1.0,
                 })
             ],
             parent_id: None,
@@ -223,7 +224,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             }),
         };
 
-        // Animate wave distortion
+        // Animate purple-circle wave distortion
         objects[4].distortion[0] = Box::new(Wave {
             width: WIDTH as f32,
             height: HEIGHT as f32,
@@ -231,6 +232,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             x_freq: 51.0 + ((time * 2.5).sin() * 50.0),
             y_amplitude: 11.0 + ((time * 0.5).sin() * 10.0),
             y_freq: 21.0 + ((time * 0.25).sin() * 20.0),
+            time: 1.0,
         });
 
         // Selected parents transforms tree
