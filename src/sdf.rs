@@ -119,7 +119,7 @@ pub mod primitive {
 
             // Map to [-4.0, 4.0] range, font are generated with an 8px padding
             // 0.0 is the font curve boundary
-            (value * 8.0) - 3.75
+            (value * 16.0) - 8.0
         }
 
         fn get_initial_cursor_position(&self) -> f32 {
