@@ -117,7 +117,7 @@ pub mod primitive {
             let value = (a * a_weight) + (b * b_weight) + (c * c_weight) + (d * d_weight); // bilinear-interpolation
             let value = (255.0 - value) / 255.0; // Map [0.0, 1.0]
 
-            // Map to [-4.0, 4.0] range, font are generated with an 8px padding
+            // Map to [-8.0, 8.0] range, font are generated with 8px padding (16px SDF gradient)
             // 0.0 is the font curve boundary
             (value * 16.0) - 8.0
         }

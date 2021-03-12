@@ -155,7 +155,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         // 5
         Object {
             transform: Transform {
-                x: -195.0,
+                x: -150.0,
                 y: -65.0,
                 rotation: 0.0,
                 scale: 1.2,
@@ -172,7 +172,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 })
             ],
             parent_id: None,
-            sdf: Box::new(primitive::Text::new(String::from("Hello! MJ Weekly! :-)"), 32.0, comic_sans))
+            sdf: Box::new(primitive::Text::new(String::from("Hello world! :-)"), 32.0, comic_sans))
         },
         // 6
         Object {
@@ -183,7 +183,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 scale: 1.0,
             },
             distortion: Vec::new(),
-            parent_id: Some(0),
+            parent_id: None,
             sdf: Box::new(primitive::Circle {
                 radius: 3.0,
             })
