@@ -244,32 +244,44 @@ fn main() -> Result<(), Box<dyn Error>> {
             .enumerate()
             .for_each(|(j, chunk)| {
                 for i in 0..WIDTH {
-                    let mut color = Color(0.0, 0.0, 0.0, 0.0); // Background color
+                    let mut color = Color(0.0, 0.0, 0.0, 0.0); // First invisible layer at the top
                     let point = Vec2::new(
                         i as f32 - (WIDTH as f32 / 2.0),
                         (HEIGHT as f32 / 2.0) - j as f32
                     );
 
+                    // Draw layer top to bottom
                     for layer in &layers {
                         let distance = objects[layer.shape].get_distance(&objects, point);
-                        color = layer.color.mix(color, distance);
+
+                        // Mix front color with layer color
+                        let back_color = Color(
+                            layer.color.0,
+                            layer.color.1,
+                            layer.color.2,
+                            layer.color.3 * (1.0 - distance.clamp(0.0, 1.0)),
+                        );
+
+                        color = back_color.mix(&color);
 
                         // Alpha check to skip below layers
-                        if color.3 == 1.0 {
+                        if color.3 >= 1.0 {
                             break;
                         }
                     }
+
+                    // Add black background
+                    color = (Color(0.0, 0.0, 0.0, 1.0)).mix(&color);
 
                     // Draw debug elements
                     if is_debug {
                         let point = debug_transform.map(point.clone());
                         let distance = objects[selected_id].get_distance(&objects, point);
                         let border_width = 2.0;
+                        let alpha = smoothstep(0.0, border_width, distance) - smoothstep(border_width, border_width * 2.0, distance);
+                        let debug_color = Color(1.0, 1.0, 0.0, alpha);
 
-                        color = color.mix(
-                            Color(1.0, 1.0, 0.0, 1.0), 
-                            smoothstep(0.0, border_width, distance) - smoothstep(border_width, border_width * 2.0, distance),
-                        );
+                        color = color.mix(&debug_color);
                     }
 
                     chunk[i] = color.into();
