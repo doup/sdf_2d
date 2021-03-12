@@ -1,19 +1,21 @@
 extern crate minifb;
 
 use bevy_math::{Vec2};
-use std::{collections::HashMap, error::Error, time::Instant};
+use std::{error::Error, time::Instant};
 use minifb::{Key, Window, WindowOptions};
 use rayon::prelude::*;
 
 // Project modules
 mod color;
 mod distortion;
+mod font;
 mod utils;
 mod sdf;
 mod transform;
 
 use color::*;
 use distortion::*;
+use font::*;
 use utils::*;
 use sdf::*;
 use transform::*;
@@ -21,24 +23,6 @@ use transform::*;
 // Main
 const WIDTH: usize = 600;
 const HEIGHT: usize = 600;
-
-struct Char {
-    width: f32,
-    height: f32,
-    x: f32,
-    x_advance: f32,
-    x_offset: f32,
-    y: f32,
-    y_offset: f32,
-}
-
-struct Font {
-    line_height: f32,
-    base: f32,
-    scale_width: f32,
-    scale_height: f32,
-    chars: HashMap<u8, Char>,
-}
 
 struct Layer {
     color: Color,
@@ -69,6 +53,7 @@ fn get_debug_transform(mut parent_id: usize, arena: &Vec<Object>) -> Transform {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    let comic_sans = get_comic_sans();
     let mut frame = 0;
     let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
     let mut is_debug = true;
@@ -133,7 +118,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         Object {
             transform: Transform {
                 x: 0.0,
-                y: (HEIGHT / 4) as f32,
+                y: (HEIGHT / 6) as f32,
                 rotation: 15.0,
                 scale: 1.0,
             },
@@ -166,10 +151,54 @@ fn main() -> Result<(), Box<dyn Error>> {
             sdf: Box::new(primitive::Circle {
                 radius: 100.0,
             })
-        }
+        },
+        // 5
+        Object {
+            transform: Transform {
+                x: -195.0,
+                y: -65.0,
+                rotation: 0.0,
+                scale: 1.2,
+            },
+            distortion: vec![
+                Box::new(Wave {
+                    width: WIDTH as f32,
+                    height: HEIGHT as f32,
+                    x_amplitude: 20.0,
+                    x_freq: 100.0,
+                    y_amplitude: 1.0,
+                    y_freq: 1.0,
+                    time: 1.0,
+                })
+            ],
+            parent_id: None,
+            sdf: Box::new(primitive::Text::new(String::from("Hello! MJ Weekly! :-)"), 32.0, comic_sans))
+        },
+        // 6
+        Object {
+            transform: Transform {
+                x: -100.0,
+                y: 100.0,
+                rotation: 0.0,
+                scale: 1.0,
+            },
+            distortion: Vec::new(),
+            parent_id: Some(0),
+            sdf: Box::new(primitive::Circle {
+                radius: 3.0,
+            })
+        },
     ];
 
     let layers = vec![
+        Layer {
+            color: Color(1.0, 0.0, 0.0, 1.0),
+            shape: 6,
+        },
+        Layer {
+            color: Color(1.0, 1.0, 1.0, 1.0),
+            shape: 5,
+        },
         Layer {
             color: Color(0.0, 1.0, 1.0, 1.0),
             shape: 3,
@@ -233,6 +262,17 @@ fn main() -> Result<(), Box<dyn Error>> {
             y_amplitude: 11.0 + ((time * 0.5).sin() * 10.0),
             y_freq: 21.0 + ((time * 0.25).sin() * 20.0),
             time: 1.0,
+        });
+
+        // Animate text wave distortion
+        objects[5].distortion[0] = Box::new(Wave {
+            width: WIDTH as f32,
+            height: HEIGHT as f32,
+            x_amplitude: 1.0,
+            x_freq: 1.0,
+            y_amplitude: 10.0,
+            y_freq: 20.0,
+            time: time,
         });
 
         // Selected parents transforms tree
