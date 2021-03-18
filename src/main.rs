@@ -172,7 +172,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 })
             ],
             parent_id: None,
-            sdf: Box::new(primitive::Text::new(String::from("Hello world! :-)"), 32.0, comic_sans))
+            sdf: Box::new(primitive::Text::new(String::from("Hello world! :-)"), 32.0, &comic_sans))
         },
         // 6
         Object {
