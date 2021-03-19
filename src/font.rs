@@ -1,7 +1,5 @@
 use std::{collections::HashMap, fs::File};
 
-use png::OutputInfo;
-
 #[derive(Clone, Debug)]
 pub struct Char {
     pub code: u8,

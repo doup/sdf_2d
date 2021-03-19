@@ -154,7 +154,7 @@ pub mod primitive {
     }
 
     impl<'a> SDF for Text<'a> {
-        fn get_distance(&self, arena: &Vec<Object>, point: Vec2) -> f32 {
+        fn get_distance(&self, _arena: &Vec<Object>, point: Vec2) -> f32 {
             let point = Vec2::new(point.x, -point.y);
             let bboxes = self.get_bboxes(point);
             let mut distances = bboxes.iter()
