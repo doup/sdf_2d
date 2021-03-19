@@ -11,10 +11,10 @@ pub trait SDF {
 pub struct Object<'a> {
     pub transform: Transform,
     // Meaning:
-    // - Boxed value (in heap)
-    // - Implements Distorsion Trait, but we don't know which implementation
-    // - Mark with Sync/Send to tell the compiler that it's OK for concurrency
-    // - Specify lifetime, boxed value will live as long as `Object`, otherwise `Box` defaults to `'static`
+    // - `Box<T>`: Boxed value, stored in heap
+    // - `dyn Distortion`: Implements Distorsion Trait, but we don't know which implementation
+    // - `Sync + Send`: Mark with Sync/Send to tell the compiler that it's OK for concurrency
+    // - `'a`: Specify lifetime, boxed value will live as long as `Object`, otherwise `Box` defaults to `'static`
     pub distortion: Vec<Box<dyn Distorsion + Sync + Send + 'a>>,
     pub parent_id: Option<usize>,
     pub sdf: Box<dyn SDF + Sync + Send + 'a>,
