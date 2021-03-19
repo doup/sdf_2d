@@ -8,14 +8,19 @@ pub trait SDF {
     fn get_distance(&self, arena: &Vec<Object>, point: Vec2) -> f32;
 }
 
-pub struct Object {
+pub struct Object<'a> {
     pub transform: Transform,
-    pub distortion: Vec<Box<dyn Distorsion + Sync + Send>>,
+    // Meaning:
+    // - Boxed value (in heap)
+    // - Implements Distorsion Trait, but we don't know which implementation
+    // - Mark with Sync/Send to tell the compiler that it's OK for concurrency
+    // - Specify lifetime, boxed value will live as long as `Object`, otherwise `Box` defaults to `'static`
+    pub distortion: Vec<Box<dyn Distorsion + Sync + Send + 'a>>,
     pub parent_id: Option<usize>,
-    pub sdf: Box<dyn SDF + Sync + Send>,
+    pub sdf: Box<dyn SDF + Sync + Send + 'a>,
 }
 
-impl SDF for Object {
+impl<'a> SDF for Object<'a> {
     fn get_distance(&self, arena: &Vec<Object>, point: Vec2) -> f32 {
         // Transform point
         let mut point = self.transform.map(point);
@@ -83,17 +88,17 @@ pub mod primitive {
     }
 
     impl<'a> Text<'a> {
-        pub fn new(text: String, size: f32, font: &'a Font) -> Text {
+        pub fn new(text: String, size: f32, font: &Font) -> Text {
             let mut text = Text { bboxes: vec![], font, size, text };
             text.generate_bboxes();
             text
         }
 
-        fn get_bboxes(&self, point: Vec2) -> Vec<&'a BBox> {
+        fn get_bboxes(&self, point: Vec2) -> Vec<&BBox> {
             self.bboxes.iter().filter(|bbox| bbox.contains(point)).collect()
         }
 
-        fn get_char_distance(&self, point: &Vec2, bbox: &'a BBox) -> f32 {
+        fn get_char_distance(&self, point: &Vec2, bbox: &BBox) -> f32 {
             let bbox_point: Vec2 = Vec2::new(point.x, point.y) - bbox.pos; // BBox Space
             let img_point: Vec2 = bbox_point + Vec2::new(bbox.char.x, bbox.char.y); // Texture Space
 
