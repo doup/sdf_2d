@@ -8,14 +8,19 @@ pub trait SDF {
     fn get_distance(&self, arena: &Vec<Object>, point: Vec2) -> f32;
 }
 
-pub struct Object {
+pub struct Object<'a> {
     pub transform: Transform,
-    pub distortion: Vec<Box<dyn Distorsion + Sync + Send>>,
+    // Meaning:
+    // - Boxed value (in heap)
+    // - Implements Distorsion Trait, but we don't know which implementation
+    // - Mark with Sync/Send to tell the compiler that it's OK for concurrency
+    // - Specify lifetime, boxed value will live as long as `Object`, otherwise `Box` defaults to `'static`
+    pub distortion: Vec<Box<dyn Distorsion + Sync + Send + 'a>>,
     pub parent_id: Option<usize>,
-    pub sdf: Box<dyn SDF + Sync + Send>,
+    pub sdf: Box<dyn SDF + Sync + Send + 'a>,
 }
 
-impl SDF for Object {
+impl<'a> SDF for Object<'a> {
     fn get_distance(&self, arena: &Vec<Object>, point: Vec2) -> f32 {
         // Transform point
         let mut point = self.transform.map(point);
@@ -61,29 +66,29 @@ pub mod primitive {
         }
     }
 
-    pub struct Text {
-        bboxes: Vec<BBox>,
-        font: Font, // TODO: change to &Font and learn about life-times
+    pub struct Text<'a> {
+        bboxes: Vec<BBox<'a>>,
+        font: &'a Font,
         size: f32,
         text: String,
     }
 
     #[derive(Debug)]
-    struct BBox {
-        char: Char, // TODO: change to &Char and learn about life-times
+    struct BBox<'a> {
+        char: &'a Char,
         pos: Vec2,
         size: Vec2,
     }
 
-    impl BBox {
+    impl<'a> BBox<'a> {
         pub fn contains(&self, point: Vec2) -> bool {
             (point.x >= self.pos.x && point.x <= (self.pos.x + self.size.x)) &&
             (point.y >= self.pos.y && point.y <= (self.pos.y + self.size.y))
         }
     }
 
-    impl Text {
-        pub fn new(text: String, size: f32, font: Font) -> Text {
+    impl<'a> Text<'a> {
+        pub fn new(text: String, size: f32, font: &Font) -> Text {
             let mut text = Text { bboxes: vec![], font, size, text };
             text.generate_bboxes();
             text
@@ -137,7 +142,7 @@ pub mod primitive {
             for letter in self.text.chars() {
                 let char = self.font.get_char(letter);
                 let bbox = BBox {
-                    char: char.clone(),
+                    char: char,
                     pos: Vec2::new(cursor + char.x_offset, char.y_offset),
                     size: Vec2::new(char.width, char.height),
                 };
@@ -148,7 +153,7 @@ pub mod primitive {
         }
     }
 
-    impl SDF for Text {
+    impl<'a> SDF for Text<'a> {
         fn get_distance(&self, arena: &Vec<Object>, point: Vec2) -> f32 {
             let point = Vec2::new(point.x, -point.y);
             let bboxes = self.get_bboxes(point);
