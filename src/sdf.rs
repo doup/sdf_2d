@@ -191,3 +191,168 @@ pub mod operator {
         }
     }
 }
+
+pub mod color {
+    use crate::color::Color;
+
+    pub trait SDFColor {
+        fn get_color(&self, distance: f32) -> Color;
+    }
+
+    pub enum Fill {
+        Solid(Color)
+    //     - solid
+    //         - color
+    //     - linear gradient
+    //     - radial gradient
+    //     - repeating gradient
+    //         - is_repeating
+    //         - size
+    //         - profile
+    }
+
+    impl SDFColor for Fill {
+        fn get_color(&self, distance: f32) -> Color {
+            match self {
+                Fill::Solid(color) => color.clone(),
+            }
+        }
+    }
+
+    pub enum BorderPosition {
+        Inside,
+        Center,
+        Outside,
+    }
+
+    pub struct Border {
+        pub position: BorderPosition,
+        pub size: f32,
+        pub color: Color,
+    }
+
+    pub struct LayerColor {
+        pub inside: Option<Fill>,
+        pub border: Option<Border>,
+        pub outside: Option<Fill>,
+    }
+
+    impl LayerColor {
+        fn get_outside_threshold(&self) -> f32 {
+            match &self.border {
+                Some(border) => match &border.position {
+                    BorderPosition::Inside => 0.0,
+                    BorderPosition::Center => border.size.abs() / 2.0,
+                    BorderPosition::Outside => border.size.abs(),
+                },
+                None => 0.0,
+            }
+        }
+    }
+
+    impl SDFColor for LayerColor {
+        fn get_color(&self, distance: f32) -> Color {
+            let fuzz = 2.0;
+            let has_border = self.border.is_some() && self.border.as_ref().unwrap().size > 0.0;
+            let transparent = Color::new(0.0, 0.0, 0.0, 0.0);
+            let outside_threshold = self.get_outside_threshold();
+            let inside_threshold = match &self.border {
+                Some(border) => outside_threshold - border.size.abs(),
+                None => 0.0,
+            };
+
+            if has_border {
+                //    inside       border        outside
+                //         v          v          v
+                // ···-----------|x|-----|x|-----------···
+                //                 ^     ^                   x = fuzz, transition between boundaries
+                //  inside-threshold     outside-threshold
+                if distance > (outside_threshold + fuzz) {
+                    // Outside
+                    match &self.outside {
+                        Some(fill) => fill.get_color(distance),
+                        None => transparent,
+                    }
+                } else if distance > outside_threshold {
+                    // Inside/Border => Outside transition
+                    let t = (distance - outside_threshold) / fuzz;
+                    let outside_color = match &self.outside {
+                        Some(fill) => fill.get_color(distance),
+                        None => transparent.clone()
+                    };
+    
+                    match &self.border {
+                        Some(border) => border.color.blend(&outside_color, t),
+                        None => {
+                            let inside_color = match &self.inside {
+                                Some(fill) => fill.get_color(distance),
+                                None => transparent
+                            };
+    
+                            inside_color.blend(&outside_color, t)
+                        }
+                    }
+                } else if distance > inside_threshold && self.border.is_some() {
+                    // Border
+                    self.border.as_ref().unwrap().color.clone()
+                } else if distance > (inside_threshold - fuzz) {
+                    // Inside => Border/Outside transition
+                    let t = 1.0 - (distance + inside_threshold.abs()).abs() / fuzz;
+                    let inside_color = match &self.inside {
+                        Some(fill) => fill.get_color(distance),
+                        None => transparent.clone()
+                    };
+    
+                    match &self.border {
+                        Some(border) => inside_color.blend(&border.color, t),
+                        None => {
+                            let outside_color = match &self.outside {
+                                Some(fill) => fill.get_color(distance),
+                                None => transparent
+                            };
+    
+                            inside_color.blend(&outside_color, t)
+                        }
+                    }
+                } else {
+                    // Inside
+                    match &self.inside {
+                        Some(fill) => fill.get_color(distance),
+                        None => transparent,
+                    }
+                }
+            } else {
+                //    inside                 outside
+                //         v                 v
+                // ···------------|xxx|------------···
+                //                  ^                     x = fuzz, transition between boundaries
+                //  inside-threshold/outside-threshold
+                if distance > (outside_threshold + fuzz / 2.0) {
+                    // Outside
+                    match &self.outside {
+                        Some(fill) => fill.get_color(distance),
+                        None => transparent,
+                    }
+                } else if distance > (outside_threshold - fuzz / 2.0) {
+                    let t = 1.0 - ((outside_threshold + fuzz / 2.0) - distance) / fuzz;
+                    let outside_color = match &self.outside {
+                        Some(fill) => fill.get_color(distance),
+                        None => transparent.clone()
+                    };
+
+                    // Mix Inside & Outside
+                    match &self.inside {
+                        Some(fill) => fill.get_color(distance).blend(&outside_color, t),
+                        None => transparent,
+                    }
+                } else {
+                    // Inside
+                    match &self.inside {
+                        Some(fill) => fill.get_color(distance),
+                        None => transparent,
+                    }
+                }
+            }
+        }
+    }
+}

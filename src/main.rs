@@ -17,7 +17,7 @@ use color::*;
 use distortion::*;
 use font::*;
 use utils::*;
-use sdf::*;
+use sdf::{*, color::{Border, BorderPosition, Fill, LayerColor, SDFColor}};
 use transform::*;
 
 // Main
@@ -25,7 +25,7 @@ const WIDTH: usize = 600;
 const HEIGHT: usize = 600;
 
 struct Layer {
-    color: Color,
+    color: LayerColor,
     shape: usize,
 }
 
@@ -192,24 +192,52 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let layers = vec![
         Layer {
-            color: Color(1.0, 0.0, 0.0, 1.0),
             shape: 6,
+            color: LayerColor {
+                inside: Some(Fill::Solid(Color(1.0, 0.0, 0.0, 1.0))),
+                border: None,
+                outside: None,
+            },
         },
         Layer {
-            color: Color(1.0, 1.0, 1.0, 1.0),
-            shape: 5,
+            shape: 5, // Text
+            color: LayerColor {
+                inside: Some(Fill::Solid(Color(1.0, 1.0, 1.0, 1.0))),
+                border: None,
+                outside: None,
+            },
         },
         Layer {
-            color: Color(0.0, 1.0, 1.0, 1.0),
             shape: 3,
+            color: LayerColor {
+                inside: Some(Fill::Solid(Color(0.0, 1.0, 1.0, 1.0))),
+                border: Some(Border {
+                    position: BorderPosition::Outside,
+                    size: 5.0,
+                    color: Color(1.0, 0.75, 0.1, 1.0),
+                }),
+                outside: None,// Some(Fill::Solid(Color(1.0, 0.0, 0.0, 1.0))),
+            },
         },
         Layer {
-            color: Color(1.0, 0.0, 0.0, 1.0),
             shape: 0,
+            color: LayerColor {
+                inside: Some(Fill::Solid(Color(1.0, 0.0, 0.0, 1.0))),
+                border: None,
+                outside: None,
+            },
         },
         Layer {
-            color: Color(0.5, 0.1, 1.0, 1.0),
             shape: 4,
+            color: LayerColor {
+                inside: None,
+                border: Some(Border {
+                    position: BorderPosition::Outside,
+                    size: 10.0,
+                    color: Color(1.0, 0.0, 0.0, 1.0),
+                }),
+                outside: None,
+            },
         },
     ];
 
@@ -295,13 +323,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         let distance = objects[layer.shape].get_distance(&objects, point);
 
                         // Mix front color with layer color
-                        let back_color = Color(
-                            layer.color.0,
-                            layer.color.1,
-                            layer.color.2,
-                            layer.color.3 * (1.0 - distance.clamp(0.0, 1.0)),
-                        );
-
+                        let back_color = layer.color.get_color(distance);
                         color = back_color.mix(&color);
 
                         // Alpha check to skip below layers
