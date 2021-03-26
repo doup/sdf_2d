@@ -25,13 +25,23 @@ impl Color {
     }
 
     pub fn blend(&self, front: &Color, t: f32) -> Color {
-        Color {
-            r:  lerp(self.r, front.r, t),
-            g:  lerp(self.g, front.g, t),
-            b:  lerp(self.b, front.b, t),
-            a:  lerp(self.a, front.a, t),
-            _s: ()
-        }
+        self.mix(
+            &Color {
+                r:  front.r * t,
+                g:  front.g * t,
+                b:  front.b * t,
+                a:  front.a * t,
+                _s: (),
+            }
+        )
+
+        // Color {
+        //     r:  lerp(self.r, front.r, t),
+        //     g:  lerp(self.g, front.g, t),
+        //     b:  lerp(self.b, front.b, t),
+        //     a:  lerp(self.a, front.a, t),
+        //     _s: ()
+        // }
 
         // self.mix(
         //     &Color::new(

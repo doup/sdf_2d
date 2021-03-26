@@ -252,7 +252,7 @@ pub mod color {
 
     impl SDFColor for LayerColor {
         fn get_color(&self, distance: f32) -> Color {
-            let fuzz = 2.0;
+            let fuzz = 1.25;
             let has_border = self.border.is_some() && self.border.as_ref().unwrap().size > 0.0;
             let transparent = Color::new(0.0, 0.0, 0.0, 0.0);
             let outside_threshold = self.get_outside_threshold();
@@ -274,29 +274,29 @@ pub mod color {
                         None => transparent,
                     }
                 } else if distance > outside_threshold {
-                    // Inside/Border => Outside transition
-                    let t = (distance - outside_threshold) / fuzz;
+                    // Border => Outside transition
+                    let t = 1.0 - (distance - outside_threshold) / fuzz;
                     let outside_color = match &self.outside {
                         Some(fill) => fill.get_color(distance),
                         None => transparent.clone()
                     };
     
                     match &self.border {
-                        Some(border) => border.color.blend(&outside_color, t),
+                        Some(border) => outside_color.blend(&border.color, t),
                         None => {
                             let inside_color = match &self.inside {
                                 Some(fill) => fill.get_color(distance),
                                 None => transparent
                             };
     
-                            inside_color.blend(&outside_color, t)
+                            outside_color.blend(&inside_color, t)
                         }
                     }
                 } else if distance > inside_threshold && self.border.is_some() {
                     // Border
                     self.border.as_ref().unwrap().color.clone()
                 } else if distance > (inside_threshold - fuzz) {
-                    // Inside => Border/Outside transition
+                    // Inside => Border transition
                     let t = 1.0 - (distance + inside_threshold.abs()).abs() / fuzz;
                     let inside_color = match &self.inside {
                         Some(fill) => fill.get_color(distance),
@@ -334,7 +334,7 @@ pub mod color {
                         None => transparent,
                     }
                 } else if distance > (outside_threshold - fuzz / 2.0) {
-                    let t = 1.0 - ((outside_threshold + fuzz / 2.0) - distance) / fuzz;
+                    let t = ((outside_threshold + fuzz / 2.0) - distance) / fuzz;
                     let outside_color = match &self.outside {
                         Some(fill) => fill.get_color(distance),
                         None => transparent.clone()
@@ -342,7 +342,7 @@ pub mod color {
 
                     // Mix Inside & Outside
                     match &self.inside {
-                        Some(fill) => fill.get_color(distance).blend(&outside_color, t),
+                        Some(fill) => outside_color.blend(&fill.get_color(distance), t),
                         None => transparent,
                     }
                 } else {
