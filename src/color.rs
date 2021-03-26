@@ -1,22 +1,37 @@
 use crate::utils::*;
 
 #[derive(Clone, Debug)]
-pub struct Color(pub f32, pub f32, pub f32, pub f32);
+pub struct Color {
+    pub r: f32,
+    pub g: f32,
+    pub b: f32,
+    pub a: f32,
+    // Secret field, this makes mandatory the use of `::new` to instanciate a `Color`
+    _s: (),
+}
 
 impl Color {
     pub fn new(r: f32, g: f32, b: f32, a: f32) -> Color {
-        Color(r, g, b, a)
+        let alpha = a.clamp(0.0, 1.0);
+
+        Color {
+            // Alpha pre-multiply colors
+            r: r.clamp(0.0, 1.0) * alpha,
+            g: g.clamp(0.0, 1.0) * alpha,
+            b: b.clamp(0.0, 1.0) * alpha,
+            a: alpha,
+            _s: ()
+        }
     }
 
     pub fn blend(&self, front: &Color, t: f32) -> Color {
-        Color(
-            lerp(self.0, front.0, t),
-            lerp(self.1, front.1, t),
-            lerp(self.2, front.2, t),
-            lerp(self.3, front.3, t),
-        )
-
-        // let t = t.clamp(0.0, 1.0);
+        Color {
+            r:  lerp(self.r, front.r, t),
+            g:  lerp(self.g, front.g, t),
+            b:  lerp(self.b, front.b, t),
+            a:  lerp(self.a, front.a, t),
+            _s: ()
+        }
 
         // self.mix(
         //     &Color::new(
@@ -45,31 +60,31 @@ impl Color {
     // }
 
     pub fn mix(&self, front: &Color) -> Color {
-        let alpha = 1.0 - (1.0 - self.3) * (1.0 - front.3);
-
-        Color (
-            self.0 * (1.0 - front.3) + front.0 * front.3,
-            self.1 * (1.0 - front.3) + front.1 * front.3,
-            self.2 * (1.0 - front.3) + front.2 * front.3,
-            alpha,
-        )
+        Color {
+            r:  self.r * (1.0 - front.a) + front.r,
+            g:  self.g * (1.0 - front.a) + front.g,
+            b:  self.b * (1.0 - front.a) + front.b,
+            a:  (self.a + front.a).clamp(0.0, 1.0),
+            _s: (),
+        }
     }
 
     pub fn mix_smooth(&self, color: Color, t: f32) -> Color {
-        Color(
-            smoothstep(self.0, color.0, t),
-            smoothstep(self.1, color.1, t),
-            smoothstep(self.2, color.2, t),
-            smoothstep(self.3, color.3, t),
-        )
+        Color {
+            r:  smoothstep(self.r, color.r, t),
+            g:  smoothstep(self.g, color.g, t),
+            b:  smoothstep(self.b, color.b, t),
+            a:  smoothstep(self.a, color.a, t),
+            _s: (),
+        }
     }
 }
 
 impl From<Color> for u32 {
     fn from(item: Color) -> Self {
-        let r = (item.0 * 255.0) as u32;
-        let g = (item.1 * 255.0) as u32;
-        let b = (item.2 * 255.0) as u32;
+        let r = (item.r * 255.0) as u32;
+        let g = (item.g * 255.0) as u32;
+        let b = (item.b * 255.0) as u32;
 
         ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF)
     }
