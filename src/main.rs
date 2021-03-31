@@ -1,9 +1,17 @@
-extern crate minifb;
+use crate::gui::Gui;
+use log::error;
+use pixels::{Pixels, SurfaceTexture};
+use winit::{dpi::LogicalSize};
+use winit::event::{Event, VirtualKeyCode};
+use winit::event_loop::{ControlFlow, EventLoop};
+use winit::window::WindowBuilder;
+use winit_input_helper::WinitInputHelper;
+
+mod gui;
 
 use bevy_math::{Vec2};
-use std::{error::Error, time::Instant};
-use minifb::{Key, Window, WindowOptions};
 use rayon::prelude::*;
+use std::{error::Error, time::Instant};
 
 // Project modules
 mod color;
@@ -54,21 +62,10 @@ fn get_debug_transform(mut parent_id: usize, arena: &Vec<Object>) -> Transform {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let comic_sans = get_comic_sans();
+    let start_time = Instant::now();
     let mut frame = 0;
-    let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
     let mut is_debug = true;
     let mut selected_id = 0;
-    let mut window = Window::new(
-        "2D Signal Distance Fields - ESC to exit",
-        WIDTH,
-        HEIGHT,
-        WindowOptions::default()
-    )?;
-
-    // Limit to max 60fpx update rate
-    window.limit_update_rate(Some(std::time::Duration::from_micros(16_600)));
-
-    let start_time = Instant::now();
     let mut objects = vec![
         // 0
         Object {
@@ -172,7 +169,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 })
             ],
             parent_id: None,
-            sdf: Box::new(primitive::Text::new(String::from("Hello world! :-)"), 32.0, &comic_sans))
+            // sdf: Box::new(primitive::Text::new(String::from("Hello world! :-)"), 32.0, &comic_sans))
+            sdf: Box::new(primitive::Circle {
+                radius: 10.0,
+            })
         },
         // 6
         Object {
@@ -241,26 +241,39 @@ fn main() -> Result<(), Box<dyn Error>> {
         },
     ];
 
-    while window.is_open() && !window.is_key_down(Key::Escape) {
-        window.get_keys_pressed(minifb::KeyRepeat::Yes).map(|keys| {
-            for t in keys {
-                match t {
-                    Key::D => is_debug = !is_debug,
-                    Key::Up => selected_id = (selected_id + 1) % objects.len(),
-                    Key::Down => selected_id = (selected_id - 1 + objects.len()) % objects.len(),
-                    Key::NumPad8 => objects[selected_id].transform.y += 5.0,
-                    Key::NumPad5 => objects[selected_id].transform.y -= 5.0,
-                    Key::NumPad4 => objects[selected_id].transform.x -= 5.0,
-                    Key::NumPad6 => objects[selected_id].transform.x += 5.0,
-                    Key::NumPad7 => objects[selected_id].transform.rotation -= 5.0,
-                    Key::NumPad9 => objects[selected_id].transform.rotation += 5.0,
-                    Key::NumPad1 => objects[selected_id].transform.scale -= 0.2,
-                    Key::NumPad3 => objects[selected_id].transform.scale += 0.2,
-                    Key::NumPad2 => println!("{:?}", objects[selected_id].transform),
-                    _ => (),
-                }
-            }
-        });
+    env_logger::init();
+
+    let event_loop = EventLoop::new();
+    let mut input = WinitInputHelper::new();
+    let window = {
+        WindowBuilder::new()
+            .with_title("2D Signal Distance Fields - ESC to exit")
+            .with_maximized(true)
+            .with_min_inner_size(LogicalSize::new(WIDTH as f64, HEIGHT as f64))
+            .build(&event_loop)
+            .unwrap()
+    };
+
+    let (mut pixels, mut gui) = {
+        let window_size = window.inner_size();
+        let scale_factor = window.scale_factor();
+        let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
+        let pixels = Pixels::new(WIDTH as u32, HEIGHT as u32, surface_texture)?;
+        let gui = Gui::new(
+            window_size.width,
+            window_size.height,
+            scale_factor,
+            pixels.context(),
+        );
+
+        (pixels, gui)
+    };
+
+    // let mut world = World::new();
+
+    event_loop.run(move |event, _, control_flow| {
+        // Update egui inputs
+        gui.handle_event(&event);
 
         let time = start_time.elapsed().as_millis() as f32 / 1000.0;
         let fps = ((frame as f32) / time) as u32;
@@ -303,57 +316,126 @@ fn main() -> Result<(), Box<dyn Error>> {
             time: time,
         });
 
-        // Selected parents transforms tree
-        let debug_transform = get_debug_transform(selected_id, &objects);
+        // Draw the current frame
+        if let Event::RedrawRequested(_) = event {
+            // Draw the world
+            let frame = pixels.get_frame();
 
-        // Render
-        buffer
-            .par_chunks_mut(WIDTH)
-            .enumerate()
-            .for_each(|(j, chunk)| {
-                for i in 0..WIDTH {
-                    let mut color = Color::new(0.0, 0.0, 0.0, 0.0); // First invisible layer at the top
-                    let point = Vec2::new(
-                        i as f32 - (WIDTH as f32 / 2.0),
-                        (HEIGHT as f32 / 2.0) - j as f32
-                    );
+            // Selected parents transforms tree
+            let debug_transform = get_debug_transform(selected_id, &objects);
 
-                    // Draw layer top to bottom
-                    for layer in &layers {
-                        let distance = objects[layer.shape].get_distance(&objects, point);
+            // Render
+            frame
+                .par_chunks_mut((WIDTH * 4) as usize)
+                .enumerate()
+                .for_each(|(j, row)| {
+                    for (i, pixel) in row.chunks_exact_mut(4).enumerate() {
+                        let mut color = Color::new(0.0, 0.0, 0.0, 0.0); // First invisible layer at the top
+                        let point = Vec2::new(
+                            i as f32 - (WIDTH as f32 / 2.0),
+                            (HEIGHT as f32 / 2.0) - j as f32
+                        );
 
-                        // Mix front color with layer color
-                        let back_color = layer.color.get_color(distance);
-                        color = back_color.mix(&color);
+                        // Draw layer top to bottom
+                        for layer in &layers {
+                            let distance = objects[layer.shape].get_distance(&objects, point);
 
-                        // Alpha check to skip below layers
-                        if color.a >= 1.0 {
-                            break;
+                            // Mix front color with layer color
+                            let back_color = layer.color.get_color(distance);
+                            color = back_color.mix(&color);
+
+                            // Alpha check to skip below layers
+                            if color.a >= 1.0 {
+                                break;
+                            }
                         }
+
+                        // Add black background
+                        color = (Color::new(0.0, 0.0, 0.0, 1.0)).mix(&color);
+
+                        // Draw debug elements
+                        if is_debug {
+                            let point = debug_transform.map(point.clone());
+                            let distance = objects[selected_id].get_distance(&objects, point);
+                            let border_width = 2.0;
+                            let alpha = smoothstep(0.0, border_width, distance) - smoothstep(border_width, border_width * 2.0, distance);
+                            let debug_color = Color::new(1.0, 1.0, 0.0, alpha);
+
+                            color = color.mix(&debug_color);
+                        }
+
+                        pixel.copy_from_slice(&color.to_array());
                     }
+                });
 
-                    // Add black background
-                    color = (Color::new(0.0, 0.0, 0.0, 1.0)).mix(&color);
+            // Prepare egui
+            gui.prepare();
 
-                    // Draw debug elements
-                    if is_debug {
-                        let point = debug_transform.map(point.clone());
-                        let distance = objects[selected_id].get_distance(&objects, point);
-                        let border_width = 2.0;
-                        let alpha = smoothstep(0.0, border_width, distance) - smoothstep(border_width, border_width * 2.0, distance);
-                        let debug_color = Color::new(1.0, 1.0, 0.0, alpha);
-
-                        color = color.mix(&debug_color);
-                    }
-
-                    chunk[i] = color.into();
-                }
+            // Render everything together
+            let render_result = pixels.render_with(|encoder, render_target, context| {
+                context.scaling_renderer.render(encoder, render_target); // Render the world texture
+                gui.render(encoder, render_target, context); // Render egui
             });
 
-        window.set_title(&format!("2D Signal Distance Fields - ESC to exit - {}FPS", fps));
-        window.update_with_buffer(&buffer, WIDTH, HEIGHT)?;
-        frame += 1;
-    }
+            // Basic error handling
+            if render_result.map_err(|e| error!("pixels.render() failed: {}", e)).is_err() {
+                *control_flow = ControlFlow::Exit;
+                return;
+            }
+        }
 
-    Ok(())
+        // Handle input events
+        if input.update(&event) {
+            if input.key_pressed(VirtualKeyCode::D) {
+                is_debug = !is_debug;
+            }
+
+            if input.key_pressed(VirtualKeyCode::Up) {
+                selected_id = (selected_id + 1) % objects.len();
+            }
+
+            if input.key_pressed(VirtualKeyCode::Down) {
+                selected_id = (selected_id - 1 + objects.len()) % objects.len();
+            }
+
+            // input.get_keys_pressed().map(|keys| {
+            //     for t in keys {
+            //         match t {
+            //             Key::NumPad8 => objects[selected_id].transform.y += 5.0,
+            //             Key::NumPad5 => objects[selected_id].transform.y -= 5.0,
+            //             Key::NumPad4 => objects[selected_id].transform.x -= 5.0,
+            //             Key::NumPad6 => objects[selected_id].transform.x += 5.0,
+            //             Key::NumPad7 => objects[selected_id].transform.rotation -= 5.0,
+            //             Key::NumPad9 => objects[selected_id].transform.rotation += 5.0,
+            //             Key::NumPad1 => objects[selected_id].transform.scale -= 0.2,
+            //             Key::NumPad3 => objects[selected_id].transform.scale += 0.2,
+            //             Key::NumPad2 => println!("{:?}", objects[selected_id].transform),
+            //             _ => (),
+            //         }
+            //     }
+            // });
+
+            // Close events
+            if input.key_pressed(VirtualKeyCode::Escape) || input.quit() {
+                *control_flow = ControlFlow::Exit;
+                return;
+            }
+
+            // Update the scale factor
+            if let Some(scale_factor) = input.scale_factor() {
+                gui.scale_factor(scale_factor);
+            }
+
+            // Resize the window
+            if let Some(size) = input.window_resized() {
+                pixels.resize_surface(size.width, size.height);
+                gui.resize(size.width, size.height);
+            }
+
+            // Update internal state and request a redraw
+            window.set_title(&format!("2D Signal Distance Fields - ESC to exit - {}FPS", fps));
+            window.request_redraw();
+            frame += 1;
+        }
+    });
 }

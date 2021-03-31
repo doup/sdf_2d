@@ -88,6 +88,14 @@ impl Color {
             _s: (),
         }
     }
+
+    pub fn to_array(&self) -> [u8; 4] {
+        let r = (self.r * 255.0) as u8;
+        let g = (self.g * 255.0) as u8;
+        let b = (self.b * 255.0) as u8;
+
+        [r, g, b, 0xFF]
+    }
 }
 
 impl From<Color> for u32 {
