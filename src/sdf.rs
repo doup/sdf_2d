@@ -212,7 +212,7 @@ pub mod color {
     }
 
     impl SDFColor for Fill {
-        fn get_color(&self, distance: f32) -> Color {
+        fn get_color(&self, _distance: f32) -> Color {
             match self {
                 Fill::Solid(color) => color.clone(),
             }
