@@ -39,6 +39,8 @@ impl<'a> SDF for Object<'a> {
 }
 
 pub mod primitive {
+    use std::sync::Arc;
+
     use crate::font::{Char, Font};
 
     use super::*;
@@ -66,29 +68,29 @@ pub mod primitive {
         }
     }
 
-    pub struct Text<'a> {
-        bboxes: Vec<BBox<'a>>,
-        font: &'a Font,
+    pub struct Text {
+        bboxes: Vec<BBox>,
+        font: Arc<Font>,
         size: f32,
         text: String,
     }
 
     #[derive(Debug)]
-    struct BBox<'a> {
-        char: &'a Char,
+    struct BBox {
+        char: Char,
         pos: Vec2,
         size: Vec2,
     }
 
-    impl<'a> BBox<'a> {
+    impl BBox {
         pub fn contains(&self, point: Vec2) -> bool {
             (point.x >= self.pos.x && point.x <= (self.pos.x + self.size.x)) &&
             (point.y >= self.pos.y && point.y <= (self.pos.y + self.size.y))
         }
     }
 
-    impl<'a> Text<'a> {
-        pub fn new(text: String, size: f32, font: &Font) -> Text {
+    impl Text {
+        pub fn new(text: String, size: f32, font: Arc<Font>) -> Text {
             let mut text = Text { bboxes: vec![], font, size, text };
             text.generate_bboxes();
             text
@@ -141,19 +143,20 @@ pub mod primitive {
 
             for letter in self.text.chars() {
                 let char = self.font.get_char(letter);
-                let bbox = BBox {
-                    char: char,
+                let x_advance = char.x_advance;
+                
+                self.bboxes.push(BBox {
                     pos: Vec2::new(cursor + char.x_offset, char.y_offset),
                     size: Vec2::new(char.width, char.height),
-                };
+                    char: char,
+                });
 
-                self.bboxes.push(bbox);
-                cursor += char.x_advance;
+                cursor += x_advance;
             }
         }
     }
 
-    impl<'a> SDF for Text<'a> {
+    impl SDF for Text {
         fn get_distance(&self, _arena: &Vec<Object>, point: Vec2) -> f32 {
             let point = Vec2::new(point.x, -point.y);
             let bboxes = self.get_bboxes(point);
@@ -212,7 +215,7 @@ pub mod color {
     }
 
     impl SDFColor for Fill {
-        fn get_color(&self, distance: f32) -> Color {
+        fn get_color(&self, _distance: f32) -> Color {
             match self {
                 Fill::Solid(color) => color.clone(),
             }
