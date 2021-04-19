@@ -24,13 +24,13 @@ pub struct Font {
 }
 
 impl Font {
-    pub fn get_char(&self, letter: char) -> &Char {
+    pub fn get_char(&self, letter: char) -> Char {
         let placeholder = self.chars.get(&63); // '?' character
         let char = self.chars.get(&(letter as u8));
 
         match char {
-            Some(char) => char,
-            None => placeholder.unwrap()
+            Some(char) => char.clone(),
+            None => placeholder.unwrap().clone()
         }
     }
 }

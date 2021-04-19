@@ -11,7 +11,7 @@ mod gui;
 
 use bevy_math::{Vec2};
 use rayon::prelude::*;
-use std::{error::Error, time::Instant};
+use std::{error::Error, sync::Arc, time::Instant};
 
 // Project modules
 mod color;
@@ -61,7 +61,7 @@ fn get_debug_transform(mut parent_id: usize, arena: &Vec<Object>) -> Transform {
 }
 
 struct World<'a> {
-    font: Font,
+    font: Arc<Font>,
     layers: Vec<Layer>,
     objects: Vec<Object<'a>>,
     selected_id: usize,
@@ -72,20 +72,18 @@ struct World<'a> {
 
 impl<'a> World<'a> {
     fn new() -> World<'a> {
-        let world = World {
-            font: get_comic_sans(),
+        World {
+            font: Arc::new(get_comic_sans()),
             layers: vec![],
             objects: vec![],
             selected_id: 0,
             is_debug: true,
             is_initialized: false,
             debug_transform: Transform::new(),
-        };
-
-        world
+        }
     }
 
-    fn init(&'a mut self) {
+    fn init(&mut self) {
         if self.is_initialized {
             return;
         }
@@ -195,7 +193,7 @@ impl<'a> World<'a> {
                     })
                 ],
                 parent_id: None,
-                sdf: Box::new(primitive::Text::new(String::from("Hello world! :-)"), 32.0, &self.font))
+                sdf: Box::new(primitive::Text::new(String::from("Hello world! :-)"), 32.0, Arc::clone(&self.font)))
                 // sdf: Box::new(primitive::Circle { radius: 10.0 })
             },
             // 6
@@ -390,6 +388,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut world = World::new();
     let mut frame = 0;
 
+    world.init();
     env_logger::init();
 
     let event_loop = EventLoop::new();
@@ -419,8 +418,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     event_loop.run(move |event, _, control_flow| {
-        world.init();
-
         // Update egui inputs
         gui.handle_event(&event);
 
