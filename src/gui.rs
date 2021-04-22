@@ -1,8 +1,10 @@
-use egui::{ClippedMesh, FontDefinitions};
+use egui::{Align, ClippedMesh, FontDefinitions, Frame, Layout};
 use egui_wgpu_backend::{RenderPass, ScreenDescriptor};
 use egui_winit_platform::{Platform, PlatformDescriptor};
 use pixels::{wgpu, PixelsContext};
 use std::time::Instant;
+
+use crate::World;
 
 /// Manages all state required for rendering egui over `Pixels`.
 pub(crate) struct Gui {
@@ -14,7 +16,7 @@ pub(crate) struct Gui {
     paint_jobs: Vec<ClippedMesh>,
 
     // State for the demo app.
-    window_open: bool,
+    // window_open: bool,
 }
 
 impl Gui {
@@ -40,7 +42,7 @@ impl Gui {
             screen_descriptor,
             rpass,
             paint_jobs: Vec::new(),
-            window_open: true,
+            // window_open: true,
         }
     }
 
@@ -61,7 +63,7 @@ impl Gui {
     }
 
     /// Prepare egui.
-    pub(crate) fn prepare(&mut self) {
+    pub(crate) fn prepare(&mut self, world: &mut World) {
         self.platform
             .update_time(self.start_time.elapsed().as_secs_f64());
 
@@ -69,7 +71,7 @@ impl Gui {
         self.platform.begin_frame();
 
         // Draw the demo application.
-        self.ui(&self.platform.context());
+        self.ui(&self.platform.context(), world);
 
         // End the egui frame and create all paint jobs to prepare for rendering.
         let (_output, paint_commands) = self.platform.end_frame();
@@ -77,30 +79,24 @@ impl Gui {
     }
 
     /// Create the UI using egui.
-    fn ui(&mut self, ctx: &egui::CtxRef) {
-        egui::TopPanel::top("menubar_container").show(ctx, |ui| {
-            egui::menu::bar(ui, |ui| {
-                egui::menu::menu(ui, "File", |ui| {
-                    if ui.button("About...").clicked() {
-                        self.window_open = true;
+    fn ui(&mut self, ctx: &egui::CtxRef, world: &mut World) {
+        egui::SidePanel::left("side_panel", 200.0).show(ctx, |ui| {
+            ui.heading("Layers");
+
+            ui.group(|ui| {
+                ui.with_layout(Layout::top_down_justified(Align::Min), |ui| {
+                    for (i, layer) in world.layers.iter().enumerate() {
+                        if ui.button(format!("Layer {}", i)).clicked() {
+                            world.selected_id = layer.shape;
+                        }
                     }
-                })
-            });
-        });
-
-        egui::Window::new("Hello, egui!")
-            .open(&mut self.window_open)
-            .show(ctx, |ui| {
-                ui.label("This example demonstrates using egui with pixels.");
-                ui.label("Made with 💖 in San Francisco!");
-
-                ui.separator();
-
-                ui.horizontal_for_text(egui::TextStyle::Body, |ui| {
-                    ui.label("Learn more about egui at");
-                    ui.hyperlink("https://docs.rs/egui");
                 });
             });
+
+            ui.separator();
+            ui.heading("Inspect");
+            ui.label("Inspect options…");
+        });
     }
 
     /// Render egui.

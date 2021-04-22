@@ -434,7 +434,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             world.render(frame);
 
             // Prepare egui
-            gui.prepare();
+            gui.prepare(&mut world);
 
             // Render everything together
             let render_result = pixels.render_with(|encoder, render_target, context| {
