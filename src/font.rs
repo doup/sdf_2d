@@ -40,14 +40,14 @@ fn load_png(path: String) -> (Vec<u8>, u32, u32) {
     // via `Transformations`. The default output transformation is `Transformations::EXPAND
     // | Transformations::STRIP_ALPHA`.
     let decoder = png::Decoder::new(File::open(path).unwrap());
-    let (info, mut reader) = decoder.read_info().unwrap();
+    let mut reader = decoder.read_info().unwrap();
     // Allocate the output buffer.
-    let mut buf = vec![0; info.buffer_size()];
+    let mut img_data = vec![0; reader.output_buffer_size()];
     // Read the next frame. An APNG might contain multiple frames.
-    reader.next_frame(&mut buf).unwrap();
+    let info = reader.next_frame(&mut img_data).unwrap();
 
     // Only use alpha channel, discard the others
-    let image = buf.chunks(4).map(|chunk| chunk[3]).collect::<Vec<u8>>();
+    let image = img_data.chunks(4).map(|chunk| chunk[3]).collect::<Vec<u8>>();
 
     (image, info.width, info.height)
 }

@@ -1,24 +1,28 @@
 [package]
 name = "sdf_2d"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["doup <asier@illarra.com>"]
-edition = "2018"
+edition = "2021"
 publish = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 # Pixels & EGUI
-egui = "0.10"
-egui_wgpu_backend = { git = "https://github.com/hasenbanck/egui_wgpu_backend.git", rev = "9d03ad345d15d1e44165849b242d3562fdf3e859" }
-egui_winit_platform = { git = "https://github.com/hasenbanck/egui_winit_platform.git", rev = "17298250e9721e8bf2c1d4a17b3e22777f8cb2e8" }
-env_logger = "0.8"
+egui = "0.19"
+egui-wgpu = "0.19"
+egui-winit = { version = "0.19", default-features = false, features = ["links"] }
+env_logger = "0.9"
 log = "0.4"
-pixels = { git = "https://github.com/parasyte/pixels.git", rev = "9bfed17a7f51733f9042b3b524405229c628003b" }
-winit = "0.24"
-winit_input_helper = "0.9"
+pixels = "0.10"
+winit = "0.27"
+winit_input_helper = "0.13"
 
 # App Deps
-bevy_math = "0.4.0"
-rayon = "1.0"
-png = "0.16.8"
+bevy_math = "0.8.0"
+rayon = "1.5"
+png = "0.17"
+
+# Enable max optimizations for dependencies, but not for our code:
+[profile.dev.package."*"]
+opt-level = 3

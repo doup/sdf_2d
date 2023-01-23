@@ -1,4 +1,4 @@
-use crate::gui::Gui;
+use crate::gui::Framework;
 use log::error;
 use pixels::{Pixels, SurfaceTexture};
 use winit::{dpi::LogicalSize};
@@ -29,8 +29,8 @@ use sdf::{*, color::{Border, BorderPosition, Fill, LayerColor, SDFColor}};
 use transform::*;
 
 // Main
-const WIDTH: usize = 600;
-const HEIGHT: usize = 600;
+const WIDTH: u32 = 600;
+const HEIGHT: u32 = 600;
 
 struct Layer {
     color: LayerColor,
@@ -394,60 +394,37 @@ fn main() -> Result<(), Box<dyn Error>> {
     let event_loop = EventLoop::new();
     let mut input = WinitInputHelper::new();
     let window = {
+        let size = LogicalSize::new(WIDTH as f64, HEIGHT as f64);
         WindowBuilder::new()
             .with_title("2D Signal Distance Fields - ESC to exit")
-            .with_maximized(true)
-            .with_min_inner_size(LogicalSize::new(WIDTH as f64, HEIGHT as f64))
+            // .with_maximized(true)
+            .with_inner_size(size)
+            .with_min_inner_size(size)
             .build(&event_loop)
             .unwrap()
     };
 
-    let (mut pixels, mut gui) = {
+    let (mut pixels, mut framework) = {
         let window_size = window.inner_size();
-        let scale_factor = window.scale_factor();
+        let scale_factor = window.scale_factor() as f32;
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
-        let pixels = Pixels::new(WIDTH as u32, HEIGHT as u32, surface_texture)?;
-        let gui = Gui::new(
+        let pixels = Pixels::new(WIDTH, HEIGHT, surface_texture)?;
+        let framework = Framework::new(
+            &event_loop,
             window_size.width,
             window_size.height,
             scale_factor,
-            pixels.context(),
+            &pixels,
         );
 
-        (pixels, gui)
+        (pixels, framework)
     };
 
     event_loop.run(move |event, _, control_flow| {
-        // Update egui inputs
-        gui.handle_event(&event);
-
         let time = start_time.elapsed().as_millis() as f32 / 1000.0;
         let fps = ((frame as f32) / time) as u32;
 
         world.update(time);
-
-        // Draw the current frame
-        if let Event::RedrawRequested(_) = event {
-            // Draw the world
-            let frame = pixels.get_frame();
-
-            world.render(frame);
-
-            // Prepare egui
-            gui.prepare(&mut world);
-
-            // Render everything together
-            let render_result = pixels.render_with(|encoder, render_target, context| {
-                context.scaling_renderer.render(encoder, render_target); // Render the world texture
-                gui.render(encoder, render_target, context); // Render egui
-            });
-
-            // Basic error handling
-            if render_result.map_err(|e| error!("pixels.render() failed: {}", e)).is_err() {
-                *control_flow = ControlFlow::Exit;
-                return;
-            }
-        }
 
         // Handle input events
         if input.update(&event) {
@@ -459,19 +436,51 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             // Update the scale factor
             if let Some(scale_factor) = input.scale_factor() {
-                gui.scale_factor(scale_factor);
+                framework.scale_factor(scale_factor);
             }
 
             // Resize the window
             if let Some(size) = input.window_resized() {
                 pixels.resize_surface(size.width, size.height);
-                gui.resize(size.width, size.height);
+                framework.resize(size.width, size.height);
             }
 
             // Update internal state and request a redraw
             window.set_title(&format!("2D Signal Distance Fields - ESC to exit - {}FPS", fps));
             window.request_redraw();
             frame += 1;
+        }
+
+        match event {
+            Event::WindowEvent { event, .. } => {
+                // Update egui inputs
+                framework.handle_event(&event);
+            }
+            // Draw the current frame
+            Event::RedrawRequested(_) => {
+                // Draw the world
+                let frame = pixels.get_frame_mut();
+
+                world.render(frame);
+
+                // Prepare egui
+                framework.prepare(&window, &mut world);
+
+                // Render everything together
+                let render_result = pixels.render_with(|encoder, render_target, context| {
+                    context.scaling_renderer.render(encoder, render_target); // Render the world texture
+                    framework.render(encoder, render_target, context); // Render egui
+
+                    Ok(())
+                });
+
+                // Basic error handling
+                if render_result.map_err(|e| error!("pixels.render() failed: {}", e)).is_err() {
+                    *control_flow = ControlFlow::Exit;
+                    return;
+                }
+            }
+            _ => (),
         }
     });
 }
